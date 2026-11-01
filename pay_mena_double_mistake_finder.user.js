@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pay_mena Double Mistake Finder
 // @namespace    http://tampermonkey.net/
-// @version      1.0.1
+// @version      1.0.2
 // @description  Ищет тикеты, где Approved (M) 2+ раза возвращали в Sent for processing (M) с комментарием "Sir, please attach the approved transaction..."
 // @match        *://th-managment.com/*
 // @match        *://*.th-managment.com/*
@@ -129,7 +129,7 @@ window.__pm_dmf_loaded = true;
 // ════════════════════════════════════════════════════
 // КОНФИГ
 // ════════════════════════════════════════════════════
-var VERSION       = '1.0.1';
+var VERSION       = '1.0.2';
 var DELAY_MIN     = 200;
 var DELAY_MAX     = 600;
 var DELAY_STEP    = 50;
@@ -289,17 +289,20 @@ function _applyCapture(url, payload){
 // CSS
 // ════════════════════════════════════════════════════
 GM_addStyle(`
-#dmf-fab{position:fixed;bottom:24px;right:150px;z-index:2147483647;display:flex;align-items:center;gap:7px;padding:10px 16px;border-radius:26px;background:rgba(12,18,35,.9);border:1px solid rgba(255,110,90,.5);color:#ffb3a6;font:700 13px Arial,sans-serif;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.5);user-select:none;}
+#dmf-fab{zoom:var(--dmf-z,1);position:fixed;bottom:24px;right:150px;z-index:2147483647;display:flex;align-items:center;gap:7px;padding:10px 16px;border-radius:26px;background:rgba(12,18,35,.9);border:1px solid rgba(255,110,90,.5);color:#ffb3a6;font:700 13px Arial,sans-serif;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.5);user-select:none;}
 #dmf-fab .dot{width:7px;height:7px;border-radius:50%;background:#ff6e5a;}
 #dmf-fab.running .dot{animation:dmfpulse 1.2s ease-in-out infinite;}
 @keyframes dmfpulse{0%,100%{opacity:1;}50%{opacity:.3;}}
 #dmf-wrap{position:fixed;inset:0;z-index:2147483646;background:rgba(4,8,18,.6);display:none;align-items:center;justify-content:center;}
 #dmf-wrap.open{display:flex;}
-#dmf-panel{width:92vw;max-width:860px;max-height:88vh;background:rgba(12,18,32,.96);border:1px solid rgba(255,110,90,.4);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;font:13px Arial,sans-serif;color:#e8f0ff;box-shadow:0 24px 64px rgba(0,0,0,.7);}
+#dmf-panel{zoom:var(--dmf-z,1);width:calc(92vw / var(--dmf-z,1));max-width:860px;max-height:calc(88vh / var(--dmf-z,1));background:rgba(12,18,32,.96);border:1px solid rgba(255,110,90,.4);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;font:13px Arial,sans-serif;color:#e8f0ff;box-shadow:0 24px 64px rgba(0,0,0,.7);}
 #dmf-hdr{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid rgba(255,110,90,.3);}
 #dmf-hdr .t{font-weight:800;color:#ffb3a6;}
 #dmf-hdr .v{font-size:10px;color:#a0605a;border:1px solid rgba(255,110,90,.3);border-radius:4px;padding:1px 6px;}
-#dmf-close{margin-left:auto;background:none;border:none;color:rgba(255,255,255,.4);font-size:18px;cursor:pointer;}
+.dmf-zoom{margin-left:auto;display:flex;align-items:center;gap:4px;}
+.dmf-zoom button{width:24px;height:24px;border-radius:6px;border:1px solid rgba(255,110,90,.4);background:rgba(255,110,90,.12);color:#ffcfc6;font:700 14px Arial,sans-serif;cursor:pointer;line-height:1;padding:0;}
+.dmf-zoom span{min-width:42px;text-align:center;font-size:11px;color:rgba(200,220,255,.7);cursor:pointer;}
+#dmf-close{background:none;border:none;color:rgba(255,255,255,.4);font-size:18px;cursor:pointer;}
 #dmf-body{display:flex;gap:16px;padding:16px 18px;overflow:hidden;flex:1;min-height:0;}
 #dmf-side{width:280px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;}
 #dmf-main{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0;}
@@ -322,7 +325,7 @@ GM_addStyle(`
 #dmf-pb-wrap{height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;}
 #dmf-pb{height:100%;width:0;background:linear-gradient(90deg,#a0405a,#ff9a85);transition:width .3s;}
 #dmf-status{font-size:11px;color:rgba(180,210,255,.6);min-height:16px;}
-#dmf-toast{position:fixed;bottom:80px;right:24px;z-index:2147483647;padding:12px 18px;border-radius:12px;color:#e0ecff;font:600 12px Arial,sans-serif;max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;}
+#dmf-toast{zoom:var(--dmf-z,1);position:fixed;bottom:80px;right:24px;z-index:2147483647;padding:12px 18px;border-radius:12px;color:#e0ecff;font:600 12px Arial,sans-serif;max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;}
 `);
 
 // ════════════════════════════════════════════════════
@@ -338,7 +341,7 @@ var wrap = document.createElement('div');
 wrap.id = 'dmf-wrap';
 wrap.innerHTML =
   '<div id="dmf-panel">' +
-    '<div id="dmf-hdr"><span class="t">🔁 Double Mistake Finder</span><span class="v">' + VERSION + '</span><button id="dmf-close">✕</button></div>' +
+    '<div id="dmf-hdr"><span class="t">🔁 Double Mistake Finder</span><span class="v">' + VERSION + '</span><div class="dmf-zoom" title="Масштаб окна (клик по % — сброс)"><button id="dmf-zoom-out">−</button><span id="dmf-zoom-val">100%</span><button id="dmf-zoom-in">+</button></div><button id="dmf-close">✕</button></div>' +
     '<div id="dmf-body">' +
       '<div id="dmf-side">' +
         '<div class="dmf-sec">Вариант 1 — список из фильтра</div>' +
@@ -371,6 +374,21 @@ function $(id){ return document.getElementById(id); }
 function togglePanel(){ wrap.classList.toggle('open'); }
 fab.addEventListener('click', togglePanel);
 $('dmf-close').addEventListener('click', function(){ wrap.classList.remove('open'); });
+
+// ── Масштаб окна (для мелкого масштаба страницы, напр. 67%). Запоминается в localStorage.
+var SCALE_MIN = 0.8, SCALE_MAX = 2, SCALE_STEP = 0.1, SCALE_KEY = 'dmf_scale';
+var uiScale = 1;
+try { uiScale = parseFloat(localStorage.getItem(SCALE_KEY)) || 1; } catch(e){}
+function applyScale(v){
+  uiScale = Math.min(SCALE_MAX, Math.max(SCALE_MIN, Math.round(v * 10) / 10));
+  document.documentElement.style.setProperty('--dmf-z', String(uiScale));
+  $('dmf-zoom-val').textContent = Math.round(uiScale * 100) + '%';
+  try { localStorage.setItem(SCALE_KEY, String(uiScale)); } catch(e){}
+}
+$('dmf-zoom-in').addEventListener('click', function(){ applyScale(uiScale + SCALE_STEP); });
+$('dmf-zoom-out').addEventListener('click', function(){ applyScale(uiScale - SCALE_STEP); });
+$('dmf-zoom-val').addEventListener('click', function(){ applyScale(1); });
+applyScale(uiScale);
 wrap.addEventListener('click', function(e){ if(e.target === wrap) wrap.classList.remove('open'); });
 document.addEventListener('keydown', function(e){
   if(e.altKey && (e.code === 'KeyD' || e.key === 'd' || e.key === 'D')){ e.preventDefault(); e.stopPropagation(); togglePanel(); }
