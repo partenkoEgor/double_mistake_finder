@@ -134,6 +134,7 @@ var MAX_RETRIES   = 5;
 var POLL_INTERVAL = 800;
 var POLL_MAX      = 8;
 var PAGE_WAIT_MS  = 600;
+var DEFAULT_THREADS = 3;   // параллельных запросов истории (1–5)
 
 // ════════════════════════════════════════════════════
 // АГЕНТЫ (ФИО для отчета)
@@ -179,7 +180,6 @@ var state = {
   processedIds:{}, found:[], startTime:0, _delay:DELAY_MIN, _finishing:false
 };
 var _listUrl = null, _listPayload = null;
-var _prefetchCache = {};
 var _keepaliveTimer = null, _speedTimer = null;
 
 // ════════════════════════════════════════════════════
@@ -345,6 +345,7 @@ wrap.innerHTML =
         '<textarea id="dmf-ids" placeholder="23739196863&#10;23739196864&#10;… (любой разделитель)"></textarea>' +
         '<button class="dmf-btn" id="dmf-run-ids">▶ Проверить список</button>' +
         '<button class="dmf-btn" id="dmf-stop">⏹ Стоп — экспорт</button>' +
+        '<label style="font-size:11px;color:rgba(200,220,255,.6);display:flex;align-items:center;gap:8px">Потоков (1–5): <input id="dmf-threads" type="number" min="1" max="5" value="' + DEFAULT_THREADS + '" style="width:48px;padding:4px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#e0ecff"></label>' +
         '<div style="font-size:10px;color:rgba(200,220,255,.4);line-height:1.4">Ищем тикеты, где цикл <b>Approved</b> → <b>Sent for processing</b> от pay_mena_* с комментарием «please attach the approved transaction…» был ' + Detector.MIN_CYCLES + '+ раз.</div>' +
       '</div>' +
       '<div id="dmf-main">' +
@@ -394,11 +395,12 @@ function updateApplyState(){
   $('dmf-run-apply').disabled = !_listUrl || state.running;
 }
 function setProgress(){
-  $('dmf-m-total').textContent = state.total || '—';
+  var total = Math.max(state.total, state.expectedTotal || 0);
+  $('dmf-m-total').textContent = total || '—';
   $('dmf-m-done').textContent = state.done;
   $('dmf-m-found').textContent = state.found.length;
   $('dmf-m-skip').textContent = state.skipped;
-  $('dmf-pb').style.width = (state.total ? Math.round(state.done / state.total * 100) : 0) + '%';
+  $('dmf-pb').style.width = (total ? Math.round(state.done / total * 100) : 0) + '%';
 }
 function addFoundItem(f){
   var returns = f.cycles.map(function(c){ return c.returnedAt + ' ' + c.returnedBy; }).join('; ');
@@ -443,9 +445,17 @@ function fetchListPage(pageNum, pollAttempt){
         var t2 = Array.isArray(item) ? item[0] : item; if(!t2) return null;
         return {ticketId:String(t2.idTicket || t2.idTkt || ''), country:t2.nameCountry || ''};
       }).filter(function(t2){ return t2 && /^\d{5,}$/.test(t2.ticketId); });
-      // hasMore === false → это последняя страница; если поля нет — идём до пустой страницы
-      var hasMore = !(resp.otherData && resp.otherData.hasMore === false);
-      return {tickets:tickets, hasMore:hasMore};
+      // Общее число тикетов: {total} лежит рядом с массивом тикетов в data (ExtendedPaymentRequestList)
+      var total = null;
+      (Array.isArray(resp.data) ? resp.data : []).forEach(function(x){
+        if(x && !Array.isArray(x) && typeof x.total === 'number') total = x.total;
+      });
+      var pageSize = Number(payload.countOfItemPage || payload.perPage) || tickets.length || 1;
+      var hasMore;
+      if(resp.otherData && resp.otherData.hasMore === false) hasMore = false;  // PaymentSupport list
+      else if(total != null) hasMore = pageNum * pageSize < total;            // ExtendedPaymentRequestList
+      else hasMore = true;                                                     // идём до пустой страницы
+      return {tickets:tickets, hasMore:hasMore, total:total};
     })
     .catch(function(e){ if(e.message === 'SESSION_EXPIRED') throw e; return null; });
 }
@@ -501,30 +511,41 @@ function handleTicket(t, resp){
   }
 }
 
-function runSeq(tickets, i){
-  if(!state.running || i >= tickets.length) return Promise.resolve();
-  var t = tickets[i];
-  var next = tickets[i + 1];
-  if(next && !_prefetchCache[next.ticketId]){
-    var nid = next.ticketId;
-    sleep(120).then(function(){ if(state.running && !_prefetchCache[nid]) _prefetchCache[nid] = fetchTicket(nid); });
+function getThreads(){
+  var n = parseInt(($('dmf-threads') || {}).value, 10);
+  return Math.min(5, Math.max(1, n || DEFAULT_THREADS));
+}
+function fmtEta(){
+  var total = Math.max(state.total, state.expectedTotal || 0);
+  if(!state.done || !total || state.done >= total) return '';
+  var msPer = (Date.now() - state.startTime) / state.done;
+  var min = Math.round(msPer * (total - state.done) / 60000);
+  return min >= 60 ? ' | ~' + Math.floor(min / 60) + ' ч ' + (min % 60) + ' мин' : ' | ~' + min + ' мин';
+}
+// Параллельная обработка: N воркеров разбирают общую очередь тикетов
+function runPool(tickets){
+  var idx = 0;
+  function worker(){
+    if(!state.running || idx >= tickets.length) return Promise.resolve();
+    var t = tickets[idx++];
+    return fetchTicket(t.ticketId).then(function(resp){
+      handleTicket(t, resp);
+      state.done++;
+      setProgress();
+      setStatus((state.source === 'apply' ? 'Стр.' + state.currentPage + ' | ' : '') +
+        state.done + '/' + Math.max(state.total, state.expectedTotal || 0) + ' → #' + t.ticketId + fmtEta());
+      return sleep(state._delay);
+    }).then(worker);
   }
-  var p = _prefetchCache[t.ticketId] || fetchTicket(t.ticketId);
-  delete _prefetchCache[t.ticketId];
-  setStatus((state.source === 'apply' ? 'Стр.' + state.currentPage + ' | ' : '') + (state.done + 1) + '/' + state.total + ' → #' + t.ticketId);
-  return p.then(function(resp){
-    handleTicket(t, resp);
-    state.done++;
-    setProgress();
-    return sleep(state._delay);
-  }).then(function(){ return runSeq(tickets, i + 1); });
+  var workers = [];
+  for(var w = 0; w < Math.min(getThreads(), tickets.length); w++) workers.push(worker());
+  return Promise.all(workers);
 }
 
 function resetRun(source){
   state.source = source; state.total = 0; state.done = 0; state.skipped = 0; state.currentPage = 1;
-  state.processedIds = {}; state.found = []; state._delay = DELAY_MIN; state._finishing = false;
+  state.processedIds = {}; state.found = []; state._delay = DELAY_MIN; state._finishing = false; state.expectedTotal = 0;
   state.startTime = Date.now();
-  _prefetchCache = {};
   $('dmf-found').innerHTML = '';
   setProgress();
   setRunning(true);
@@ -551,9 +572,10 @@ function collectPage(){
     });
     // защита от бесконечного цикла, если сервер игнорирует номер страницы
     if(!fresh.length){ finishCollection(); return; }
+    if(page.total != null) state.expectedTotal = page.total;
     state.total += fresh.length;
     setProgress();
-    return runSeq(fresh, 0).then(function(){
+    return runPool(fresh).then(function(){
       if(!state.running || !page.hasMore){ finishCollection(); return; }
       state.currentPage++;
       setTimeout(collectPage, PAGE_WAIT_MS);
@@ -577,7 +599,7 @@ $('dmf-run-ids').addEventListener('click', function(){
   state.total = ids.length;
   setProgress();
   var tickets = ids.map(function(id){ return {ticketId:id, country:''}; });
-  runSeq(tickets, 0).then(function(){ finishCollection(); }).catch(onError);
+  runPool(tickets).then(function(){ finishCollection(); }).catch(onError);
 });
 
 $('dmf-stop').addEventListener('click', function(){
