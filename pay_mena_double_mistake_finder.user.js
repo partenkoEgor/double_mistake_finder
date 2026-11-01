@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pay_mena Double Mistake Finder
 // @namespace    http://tampermonkey.net/
-// @version      1.0.2
+// @version      1.0.3
 // @description  Ищет тикеты, где Approved (M) 2+ раза возвращали в Sent for processing (M) с комментарием "Sir, please attach the approved transaction..."
 // @match        *://th-managment.com/*
 // @match        *://*.th-managment.com/*
@@ -129,7 +129,7 @@ window.__pm_dmf_loaded = true;
 // ════════════════════════════════════════════════════
 // КОНФИГ
 // ════════════════════════════════════════════════════
-var VERSION       = '1.0.2';
+var VERSION       = '1.0.3';
 var DELAY_MIN     = 200;
 var DELAY_MAX     = 600;
 var DELAY_STEP    = 50;
@@ -289,7 +289,8 @@ function _applyCapture(url, payload){
 // CSS
 // ════════════════════════════════════════════════════
 GM_addStyle(`
-#dmf-fab{zoom:var(--dmf-z,1);position:fixed;bottom:24px;right:150px;z-index:2147483647;display:flex;align-items:center;gap:7px;padding:10px 16px;border-radius:26px;background:rgba(12,18,35,.9);border:1px solid rgba(255,110,90,.5);color:#ffb3a6;font:700 13px Arial,sans-serif;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.5);user-select:none;}
+/* Кнопка-«таблетка» как у Bulk Approve BETA; левый нижний угол над шестерёнкой меню, чтобы не перекрывать его кнопку справа */
+#dmf-fab{position:fixed;left:16px;bottom:90px;z-index:2147483647;display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:999px;background:rgba(12,18,35,.9);border:1px solid rgba(255,110,90,.5);color:#ffb3a6;font:600 13px system-ui,Arial,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25);user-select:none;}
 #dmf-fab .dot{width:7px;height:7px;border-radius:50%;background:#ff6e5a;}
 #dmf-fab.running .dot{animation:dmfpulse 1.2s ease-in-out infinite;}
 @keyframes dmfpulse{0%,100%{opacity:1;}50%{opacity:.3;}}
@@ -325,7 +326,7 @@ GM_addStyle(`
 #dmf-pb-wrap{height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;}
 #dmf-pb{height:100%;width:0;background:linear-gradient(90deg,#a0405a,#ff9a85);transition:width .3s;}
 #dmf-status{font-size:11px;color:rgba(180,210,255,.6);min-height:16px;}
-#dmf-toast{zoom:var(--dmf-z,1);position:fixed;bottom:80px;right:24px;z-index:2147483647;padding:12px 18px;border-radius:12px;color:#e0ecff;font:600 12px Arial,sans-serif;max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;}
+#dmf-toast{zoom:var(--dmf-z,1);position:fixed;bottom:140px;left:16px;z-index:2147483647;padding:12px 18px;border-radius:12px;color:#e0ecff;font:600 12px Arial,sans-serif;max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;}
 `);
 
 // ════════════════════════════════════════════════════
