@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pay_mena Double Mistake Finder
 // @namespace    http://tampermonkey.net/
-// @version      1.0.3
+// @version      1.0.4
 // @description  Ищет тикеты, где Approved (M) 2+ раза возвращали в Sent for processing (M) с комментарием "Sir, please attach the approved transaction..."
 // @match        *://th-managment.com/*
 // @match        *://*.th-managment.com/*
@@ -129,13 +129,15 @@ window.__pm_dmf_loaded = true;
 // ════════════════════════════════════════════════════
 // КОНФИГ
 // ════════════════════════════════════════════════════
-var VERSION       = '1.0.3';
+var VERSION       = '1.0.4';
 var DELAY_MIN     = 200;
 var DELAY_MAX     = 600;
 var DELAY_STEP    = 50;
 var MAX_RETRIES   = 5;
 var POLL_INTERVAL = 800;
 var POLL_MAX      = 8;
+var LIST_RETRIES  = 8;      // повторов страницы списка при сбое/пустом ответе
+var LIST_RETRY_BASE_MS = 3000;
 var PAGE_WAIT_MS  = 600;
 var DEFAULT_THREADS = 3;   // параллельных запросов истории (1–5)
 
@@ -449,37 +451,48 @@ function fetchListPage(pageNum, pollAttempt){
   pollAttempt = pollAttempt || 0;
   var payload = JSON.parse(JSON.stringify(_listPayload));
   payload[_pageKey(payload)] = pageNum;
+  var pageSize = Number(payload.countOfItemPage || payload.perPage) || 0;
+  function fail(reason){ return {ok:false, reason:reason, tickets:[]}; }
   return fetch(_listUrl, {method:'POST', headers:getHeaders(true), credentials:'include', body:JSON.stringify(payload)})
-    .then(function(r){ return r.text(); })
-    .then(function(text){
-      var t = text.replace(/^\s+/, '');
+    .then(function(r){ return r.text().then(function(text){ return {status:r.status, ok:r.ok, text:text}; }); })
+    .then(function(res){
+      var t = res.text.replace(/^\s+/, '');
       if(t.indexOf('<!DOCTYPE') === 0 || t.indexOf('<html') === 0) throw new Error('SESSION_EXPIRED');
-      var resp; try{ resp = JSON.parse(text); }catch(e){ return []; }
+      if(!res.ok) return fail('HTTP ' + res.status);
+      var resp; try{ resp = JSON.parse(res.text); }catch(e){ return fail('ответ не JSON'); }
       if(resp.is_polling && resp.count < 5 && pollAttempt < POLL_MAX){
         setStatus('⏳ Загружаю стр.' + pageNum + '... (' + (pollAttempt + 1) + '/' + POLL_MAX + ')');
         return sleep(POLL_INTERVAL).then(function(){ return fetchListPage(pageNum, pollAttempt + 1); });
       }
-      if(!resp.data || !resp.data.length) return null;
-      var raw = resp.data;
-      if(Array.isArray(raw[0]) && raw[0].length > 0){ var probe = raw[0][0]; if(probe && (probe.idTicket || probe.idTkt)) raw = raw[0]; }
-      if(!raw.length || (Array.isArray(raw[0]) && raw[0].length === 0)) return null;
-      var tickets = raw.map(function(item){
-        var t2 = Array.isArray(item) ? item[0] : item; if(!t2) return null;
-        return {ticketId:String(t2.idTicket || t2.idTkt || ''), country:t2.nameCountry || ''};
-      }).filter(function(t2){ return t2 && /^\d{5,}$/.test(t2.ticketId); });
       // Общее число тикетов: {total} лежит рядом с массивом тикетов в data (ExtendedPaymentRequestList)
       var total = null;
       (Array.isArray(resp.data) ? resp.data : []).forEach(function(x){
         if(x && !Array.isArray(x) && typeof x.total === 'number') total = x.total;
       });
-      var pageSize = Number(payload.countOfItemPage || payload.perPage) || tickets.length || 1;
+      var raw = Array.isArray(resp.data) ? resp.data : [];
+      if(Array.isArray(raw[0])) raw = raw[0];
+      var tickets = raw.map(function(item){
+        var t2 = Array.isArray(item) ? item[0] : item; if(!t2) return null;
+        return {ticketId:String(t2.idTicket || t2.idTkt || ''), country:t2.nameCountry || ''};
+      }).filter(function(t2){ return t2 && /^\d{5,}$/.test(t2.ticketId); });
+      var size = pageSize || tickets.length || 1;
+      console.log('[DMF] стр.' + pageNum + ': тикетов ' + tickets.length + ', total ' + total + ', is_polling ' + resp.is_polling + ', count ' + resp.count);
+
+      if(!tickets.length){
+        // Пустая страница: это конец, только если сервер так и говорит (или total это подтверждает).
+        // Иначе сервер ещё не подготовил страницу — сигнализируем ошибку, чтобы её перезапросили.
+        if(resp.otherData && resp.otherData.hasMore === false) return {ok:true, tickets:[], hasMore:false, total:total};
+        if(total != null && (pageNum - 1) * size >= total) return {ok:true, tickets:[], hasMore:false, total:total};
+        if(total == null && !resp.is_polling) return {ok:true, tickets:[], hasMore:false, total:total};
+        return fail(resp.is_polling ? 'сервер ещё готовит страницу (is_polling)' : 'пустая страница, хотя total = ' + total);
+      }
       var hasMore;
       if(resp.otherData && resp.otherData.hasMore === false) hasMore = false;  // PaymentSupport list
-      else if(total != null) hasMore = pageNum * pageSize < total;            // ExtendedPaymentRequestList
+      else if(total != null) hasMore = pageNum * size < total;                 // ExtendedPaymentRequestList
       else hasMore = true;                                                     // идём до пустой страницы
-      return {tickets:tickets, hasMore:hasMore, total:total};
+      return {ok:true, tickets:tickets, hasMore:hasMore, total:total};
     })
-    .catch(function(e){ if(e.message === 'SESSION_EXPIRED') throw e; return null; });
+    .catch(function(e){ if(e.message === 'SESSION_EXPIRED') throw e; return fail('сеть: ' + (e && e.message)); });
 }
 
 // ════════════════════════════════════════════════════
@@ -567,6 +580,7 @@ function runPool(tickets){
 function resetRun(source){
   state.source = source; state.total = 0; state.done = 0; state.skipped = 0; state.currentPage = 1;
   state.processedIds = {}; state.found = []; state._delay = DELAY_MIN; state._finishing = false; state.expectedTotal = 0;
+  state.stopReason = ''; state.pagesDone = 0;
   state.startTime = Date.now();
   $('dmf-found').innerHTML = '';
   setProgress();
@@ -584,23 +598,41 @@ function onError(e){
   finishCollection('⚠ Ошибка: ' + (e && e.message));
 }
 
-function collectPage(){
+function collectPage(attempt){
+  attempt = attempt || 0;
   fetchListPage(state.currentPage).then(function(page){
-    if(!state.running || !page || !page.tickets.length){ finishCollection(); return; }
+    if(!state.running){ finishCollection(); return; }
+    if(page.total != null) state.expectedTotal = page.total;
+    if(!page.ok){
+      // Сбой страницы — не конец списка: перезапрашиваем с нарастающей паузой
+      if(attempt < LIST_RETRIES){
+        var wait = Math.min(LIST_RETRY_BASE_MS * (attempt + 1), 20000);
+        setStatus('⚠ Стр.' + state.currentPage + ': ' + page.reason + '. Повтор ' + (attempt + 1) + '/' + LIST_RETRIES + ' через ' + Math.round(wait / 1000) + ' с');
+        return sleep(wait).then(function(){ if(state.running) collectPage(attempt + 1); else finishCollection(); });
+      }
+      state.stopReason = 'стр.' + state.currentPage + ' не загрузилась после ' + LIST_RETRIES + ' повторов: ' + page.reason;
+      finishCollection('⚠ ' + state.stopReason);
+      return;
+    }
+    if(!page.tickets.length){ finishCollection(); return; }
     var fresh = page.tickets.filter(function(t){
       if(state.processedIds[t.ticketId]) return false;
       state.processedIds[t.ticketId] = 1;
       return true;
     });
+    state.pagesDone = state.currentPage;
     // защита от бесконечного цикла, если сервер игнорирует номер страницы
-    if(!fresh.length){ finishCollection(); return; }
-    if(page.total != null) state.expectedTotal = page.total;
+    if(!fresh.length){
+      state.stopReason = 'стр.' + state.currentPage + ' повторяет уже проверенные тикеты';
+      finishCollection('⚠ ' + state.stopReason);
+      return;
+    }
     state.total += fresh.length;
     setProgress();
     return runPool(fresh).then(function(){
       if(!state.running || !page.hasMore){ finishCollection(); return; }
       state.currentPage++;
-      setTimeout(collectPage, PAGE_WAIT_MS);
+      setTimeout(function(){ collectPage(0); }, PAGE_WAIT_MS);
     });
   }).catch(onError);
 }
@@ -720,6 +752,9 @@ function buildXLSX(){
   var summary = [
     ['Источник', state.source === 'apply' ? 'Фильтр (APPLY)' + (_listPayload && _listPayload.dateFrom ? ', с ' + _listPayload.dateFrom : '') : 'Список ID'],
     ['Проверено тикетов', state.done],
+    ['Тикетов по фильтру (total)', state.expectedTotal || '—'],
+    ['Пройдено страниц', state.source === 'apply' ? state.pagesDone : '—'],
+    ['Сбор завершён', state.stopReason ? 'РАНЬШЕ ВРЕМЕНИ: ' + state.stopReason : (state.expectedTotal && state.done < state.expectedTotal ? 'остановлен вручную или не все тикеты загрузились' : 'полностью')],
     ['Найдено (' + Detector.MIN_CYCLES + '+ возврата)', found.length],
     ['Пропущено (ошибка загрузки)', state.skipped],
     ['Дата выгрузки', new Date().toLocaleString('ru-RU')],
