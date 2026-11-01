@@ -1,1 +1,40 @@
 # double_mistake_finder
+
+Tampermonkey-скрипт **pay_mena Double Mistake Finder**. Он ищет тикеты Payment Support, которые
+**2 и более раз** прошли такой цикл:
+
+1. агент ставит **Approved (M)** (`nameExternalStatus`);
+2. оператор `pay_mena_<число>` возвращает тикет в **Sent for processing (M)** с Inside Comment
+   «Sir, please attach the approved transaction related to the payment from the ticket or set the right status.»
+
+Проверяется вся история тикета (`/admin/backoffice/paymentsupporthistory`), с любыми `pay_mena_*`.
+
+## Установка
+Tampermonkey → «Создать новый скрипт» → вставить содержимое `pay_mena_double_mistake_finder.user.js` → сохранить.
+Работает на `th-managment.com` и `webmanegment.com`. Панель открывается кнопкой **Double Mistakes** справа внизу или по **Alt+D**.
+
+## Использование
+- **Вариант 1 — по фильтру.** Выставить фильтр в Payment Support и нажать **APPLY**. Скрипт перехватит запрос списка
+  (`page`/`perPage`), затем нажать **▶ Сбор по APPLY**. Скрипт пройдёт все страницы (до `otherData.hasMore = false`)
+  и загрузит историю каждого тикета.
+- **Вариант 2 — свои ID.** Вставить ID тикетов в поле (разделитель любой) и нажать **▶ Проверить список**.
+- **⏹ Стоп** останавливает сбор и выгружает то, что уже найдено.
+
+## Что считается циклом
+- Approved (M) → … → `pay_mena_*` ставит Sent for processing (M) с комментарием, в котором есть
+  «please attach the approved transaction» (регистр, `// Sir,`, номер транзакции и `.x2` не важны).
+- Возврат без предшествующего Approved не считается. Два возврата подряд на один Approved считаются как 1 цикл.
+- Возвраты от других логинов (например, `pay_cm_mena_*`) или с другим текстом не считаются.
+
+## Excel `double_mistakes_<дата>.xlsx`
+- **Двойные ошибки** — один тикет на строку: число возвратов, кто и когда ставил Approved, кто и когда возвращал,
+  текущий статус. Тикеты с 3+ возвратами подсвечены красным.
+- **Детализация** — одна строка на каждый цикл, с Inside Comment на Approved и на возврате.
+- **Сводка** — сколько тикетов проверено, найдено и пропущено, плюс возвраты по каждому `pay_mena_*`.
+
+## Тесты
+```bash
+node test/findDoubleMistakes.test.js
+```
+Детектор (`Detector` в начале скрипта) — чистая функция без DOM. Тест прогоняет его на реальной (урезанной)
+истории тикета 22961178 (`test/fixtures/`) и на синтетических граничных случаях.
