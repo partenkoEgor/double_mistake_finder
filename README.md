@@ -10,7 +10,14 @@ Tampermonkey-скрипт **pay_mena Double Mistake Finder**. Он ищет ти
 Проверяется вся история тикета (`/admin/backoffice/paymentsupporthistory`), с любыми `pay_mena_*`.
 
 ## Установка
-Tampermonkey → «Создать новый скрипт» → вставить содержимое `pay_mena_double_mistake_finder.user.js` → сохранить.
+Открыть ссылку в браузере с Tampermonkey и нажать **Установить**:
+
+**https://raw.githubusercontent.com/partenkoEgor/double_mistake_finder/main/pay_mena_double_mistake_finder.user.js**
+
+Скрипт обновляется сам: Tampermonkey периодически проверяет эту ссылку и ставит новую версию, если в ней больше `@version`.
+Проверить сразу: Tampermonkey → Панель управления → «Проверить обновления» (или иконка обновления у скрипта).
+
+> Для разработчиков: при каждом изменении скрипта поднимайте `@version` (и `VERSION`), иначе обновление не придёт.
 Работает на `th-managment.com` и `webmanegment.com`. Панель открывается кнопкой **Double Mistakes** справа внизу или по **Alt+D**.
 
 ## Использование

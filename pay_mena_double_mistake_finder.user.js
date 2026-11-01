@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pay_mena Double Mistake Finder
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @version      1.0.1
 // @description  Ищет тикеты, где Approved (M) 2+ раза возвращали в Sent for processing (M) с комментарием "Sir, please attach the approved transaction..."
 // @match        *://th-managment.com/*
 // @match        *://*.th-managment.com/*
@@ -10,6 +10,9 @@
 // @require      https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js
 // @grant        GM_addStyle
 // @run-at       document-idle
+// @homepageURL  https://github.com/partenkoEgor/double_mistake_finder
+// @updateURL    https://raw.githubusercontent.com/partenkoEgor/double_mistake_finder/main/pay_mena_double_mistake_finder.user.js
+// @downloadURL  https://raw.githubusercontent.com/partenkoEgor/double_mistake_finder/main/pay_mena_double_mistake_finder.user.js
 // ==/UserScript==
 (function(){'use strict';
 
@@ -126,7 +129,7 @@ window.__pm_dmf_loaded = true;
 // ════════════════════════════════════════════════════
 // КОНФИГ
 // ════════════════════════════════════════════════════
-var VERSION       = '1.0.0';
+var VERSION       = '1.0.1';
 var DELAY_MIN     = 200;
 var DELAY_MAX     = 600;
 var DELAY_STEP    = 50;
