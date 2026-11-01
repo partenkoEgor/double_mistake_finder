@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pay_mena Double Mistake Finder
 // @namespace    http://tampermonkey.net/
-// @version      1.0.4
+// @version      1.0.5
 // @description  Ищет тикеты, где Approved (M) 2+ раза возвращали в Sent for processing (M) с комментарием "Sir, please attach the approved transaction..."
 // @match        *://th-managment.com/*
 // @match        *://*.th-managment.com/*
@@ -129,7 +129,7 @@ window.__pm_dmf_loaded = true;
 // ════════════════════════════════════════════════════
 // КОНФИГ
 // ════════════════════════════════════════════════════
-var VERSION       = '1.0.4';
+var VERSION       = '1.0.5';
 var DELAY_MIN     = 200;
 var DELAY_MAX     = 600;
 var DELAY_STEP    = 50;
@@ -476,20 +476,24 @@ function fetchListPage(pageNum, pollAttempt){
         return {ticketId:String(t2.idTicket || t2.idTkt || ''), country:t2.nameCountry || ''};
       }).filter(function(t2){ return t2 && /^\d{5,}$/.test(t2.ticketId); });
       var size = pageSize || tickets.length || 1;
-      console.log('[DMF] стр.' + pageNum + ': тикетов ' + tickets.length + ', total ' + total + ', is_polling ' + resp.is_polling + ', count ' + resp.count);
+      // Сервер присылает настоящий total только на стр.1, на следующих — {total: 0}.
+      // Поэтому решаем по total за весь прогон (максимум из положительных), а не по total этой страницы.
+      var known = Math.max(state.expectedTotal || 0, total > 0 ? total : 0) || null;
+      var serverHasMore = resp.otherData ? resp.otherData.hasMore : undefined;
+      console.log('[DMF] стр.' + pageNum + ': тикетов ' + tickets.length + ', total ' + total + ' (за прогон ' + known + '), is_polling ' + resp.is_polling + ', count ' + resp.count);
 
       if(!tickets.length){
-        // Пустая страница: это конец, только если сервер так и говорит (или total это подтверждает).
+        // Пустая страница: это конец, только если сервер так и говорит (или total за прогон это подтверждает).
         // Иначе сервер ещё не подготовил страницу — сигнализируем ошибку, чтобы её перезапросили.
-        if(resp.otherData && resp.otherData.hasMore === false) return {ok:true, tickets:[], hasMore:false, total:total};
-        if(total != null && (pageNum - 1) * size >= total) return {ok:true, tickets:[], hasMore:false, total:total};
-        if(total == null && !resp.is_polling) return {ok:true, tickets:[], hasMore:false, total:total};
-        return fail(resp.is_polling ? 'сервер ещё готовит страницу (is_polling)' : 'пустая страница, хотя total = ' + total);
+        if(serverHasMore === false) return {ok:true, tickets:[], hasMore:false, total:total};
+        if(known != null && (pageNum - 1) * size >= known) return {ok:true, tickets:[], hasMore:false, total:total};
+        if(known == null && !resp.is_polling) return {ok:true, tickets:[], hasMore:false, total:total};
+        return fail(resp.is_polling ? 'сервер ещё готовит страницу (is_polling)' : 'пустая страница, хотя total = ' + known);
       }
       var hasMore;
-      if(resp.otherData && resp.otherData.hasMore === false) hasMore = false;  // PaymentSupport list
-      else if(total != null) hasMore = pageNum * size < total;                 // ExtendedPaymentRequestList
-      else hasMore = true;                                                     // идём до пустой страницы
+      if(serverHasMore === false) hasMore = false;                 // PaymentSupport list
+      else if(known != null) hasMore = pageNum * size < known;     // ExtendedPaymentRequestList
+      else hasMore = true;                                         // total неизвестен — идём до пустой страницы
       return {ok:true, tickets:tickets, hasMore:hasMore, total:total};
     })
     .catch(function(e){ if(e.message === 'SESSION_EXPIRED') throw e; return fail('сеть: ' + (e && e.message)); });
@@ -602,7 +606,7 @@ function collectPage(attempt){
   attempt = attempt || 0;
   fetchListPage(state.currentPage).then(function(page){
     if(!state.running){ finishCollection(); return; }
-    if(page.total != null) state.expectedTotal = page.total;
+    if(page.total > 0) state.expectedTotal = Math.max(state.expectedTotal || 0, page.total); // total 0 со стр.2+ игнорируем
     if(!page.ok){
       // Сбой страницы — не конец списка: перезапрашиваем с нарастающей паузой
       if(attempt < LIST_RETRIES){
