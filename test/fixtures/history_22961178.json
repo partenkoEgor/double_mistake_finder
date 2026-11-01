@@ -1,0 +1,28 @@
+{
+  "_note": "Урезанный ответ /admin/backoffice/paymentsupporthistory (тикет 22961178). Оставлены только поля, нужные детектору; данные клиента удалены. Порядок как в API: новые сверху.",
+  "success": true,
+  "data": [
+    {"dateEdit":"2026-10-31 21:12:14","nameExternalStatus":"Approved (M)","nameInternalStatus":"Customer provided additional info","commentSupport":"The order was confirmed by","adminProcessedLogin":"Vodafone_Nivus_Team_1"},
+    {"dateEdit":"2026-10-31 19:59:20","nameExternalStatus":"Sent for processing (M)","nameInternalStatus":"Awaiting response from PS","commentSupport":"Provide a video proof of how many payments you have received from this wallet, attach it to the ticket and set the correct status.","adminProcessedLogin":"pay_cm_mena_140"},
+    {"dateEdit":"2026-10-31 19:47:56","nameExternalStatus":"Approved (M)","nameInternalStatus":"Customer provided additional info","commentSupport":"23739196863","adminProcessedLogin":"Vodafone_Nivus_Team_1"},
+    {"dateEdit":"2026-10-31 17:15:42","nameExternalStatus":"Sent for processing (M)","nameInternalStatus":"Awaiting response from PS","commentSupport":"attach a suitable APPROVED transaction or set the correct status.","adminProcessedLogin":"pay_cm_mena_140"},
+    {"dateEdit":"2026-10-31 00:36:22","nameExternalStatus":"Approved (M)","nameInternalStatus":"Customer provided additional info","commentSupport":"23746833359","adminProcessedLogin":"Vodafone_Nivus_Team_1"},
+    {"dateEdit":"2026-10-30 18:40:29","nameExternalStatus":"Sent for processing (M)","nameInternalStatus":"Awaiting response from PS","commentSupport":"Dear Sir, the transaction you provided does not match the data. Please provide the correct transaction for this ticket and indicate the correct status. If you did not receive funds from the specified wallet on 2026-09-27, please provide video confirmation. X2","adminProcessedLogin":"pay_cm_mena_170"},
+    {"dateEdit":"2026-10-29 15:47:09","nameExternalStatus":"Approved (M)","nameInternalStatus":"Customer provided additional info","commentSupport":"23890136197","adminProcessedLogin":"Vodafone_Nivus_Team_1"},
+    {"dateEdit":"2026-10-29 10:52:26","nameExternalStatus":"Sent for processing (M)","nameInternalStatus":"Awaiting response from PS","commentSupport":"Dear Sir, the transaction you provided does not match the data. Please provide the correct transaction for this ticket and indicate the correct status. If you did not receive funds from the specified wallet on 2026-09-27, please provide video confirmation.","adminProcessedLogin":"pay_cm_mena_170"},
+    {"dateEdit":"2026-10-27 17:15:29","nameExternalStatus":"Approved (M)","nameInternalStatus":"Customer provided additional info","commentSupport":"23890136197","adminProcessedLogin":"Vodafone_Nivus_Team_1"},
+    {"dateEdit":"2026-10-26 15:36:30","nameExternalStatus":"Sent for processing (M)","nameInternalStatus":"Awaiting response from PS","commentSupport":"Dear Sir, for conformation please attach a video recording of your transaction history showing how many payments you received from the specified wallet on 2026-09-27 and indicate the correct status.","adminProcessedLogin":"pay_cm_mena_170"},
+    {"dateEdit":"2026-10-25 20:41:45","nameExternalStatus":"In progress (M)","nameInternalStatus":"In progress","commentSupport":"23739196863\r\n// Waiting for MN","adminProcessedLogin":"pay_mena_692"},
+    {"dateEdit":"2026-10-25 18:28:15","nameExternalStatus":"In progress (M)","nameInternalStatus":"In progress","commentSupport":"23739196863","adminProcessedLogin":"pay_mena_692"},
+    {"dateEdit":"2026-10-17 23:38:39","nameExternalStatus":"Approved (M)","nameInternalStatus":"Customer provided additional info","commentSupport":"23739196863","adminProcessedLogin":"Vodafone_Nivus_Main"},
+    {"dateEdit":"2026-10-17 05:21:50","nameExternalStatus":"Sent for processing (M)","nameInternalStatus":"Awaiting response from PS","commentSupport":"23739196863\r\n// Sir, please attach the approved transaction related to the payment from the ticket or set the right status.x2","adminProcessedLogin":"pay_mena_646"},
+    {"dateEdit":"2026-10-17 03:14:17","nameExternalStatus":"In progress (M)","nameInternalStatus":"In progress","commentSupport":"23739196863","adminProcessedLogin":"pay_mena_646"},
+    {"dateEdit":"2026-10-07 22:28:23","nameExternalStatus":"Approved (M)","nameInternalStatus":"Customer provided additional info","commentSupport":"23739196863","adminProcessedLogin":"Vodafone_Nivus_Main"},
+    {"dateEdit":"2026-10-07 20:12:49","nameExternalStatus":"Sent for processing (M)","nameInternalStatus":"Awaiting response from PS","commentSupport":"23739196863\r\n// Sir, please attach the approved transaction related to the payment from the ticket or set the right status.","adminProcessedLogin":"pay_mena_614"},
+    {"dateEdit":"2026-10-07 20:12:05","nameExternalStatus":"In progress (M)","nameInternalStatus":"In progress","commentSupport":"23739196863","adminProcessedLogin":"pay_mena_614"},
+    {"dateEdit":"2026-09-28 00:08:24","nameExternalStatus":"Approved (M)","nameInternalStatus":"Customer provided additional info","commentSupport":"23739196863","adminProcessedLogin":"Vodafone_Nivus_Team_1"},
+    {"dateEdit":"2026-09-27 23:26:30","nameExternalStatus":"New request (M)","nameInternalStatus":"New","commentSupport":"","adminProcessedLogin":"Бот_ПК Сократ"},
+    {"dateEdit":"2026-09-27 23:26:10","nameExternalStatus":"Pre-processing (M)","nameInternalStatus":"Pre-processing","commentSupport":"","adminProcessedLogin":""},
+    {"dateEdit":"2026-09-27 23:26:10","nameExternalStatus":"Pending crediting of funds","nameInternalStatus":"Pending crediting of funds","commentSupport":"","adminProcessedLogin":""}
+  ]
+}
