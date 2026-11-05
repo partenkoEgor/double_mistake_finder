@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         pay_mena Double Mistake Finder
 // @namespace    http://tampermonkey.net/
-// @version      1.0.5
-// @description  Ищет тикеты, где Approved (M) 2+ раза возвращали в Sent for processing (M) с комментарием "Sir, please attach the approved transaction..."
+// @version      1.1.0
+// @description  Ищет тикеты, где Approved (M) 2+ раза возвращали в Sent for processing (M) с комментарием "Sir, please attach the approved transaction..."; режим In progress — список тикетов в работе: кто взял (последняя строка истории) и Inside comment
 // @match        *://th-managment.com/*
 // @match        *://*.th-managment.com/*
 // @match        *://webmanegment.com/*
@@ -48,7 +48,12 @@ var Detector = (function(){
         adminName: str(r.adminProcessedName),
         status: str(r.nameExternalStatus),
         internalStatus: str(r.nameInternalStatus),
-        comment: str(r.commentSupport)
+        comment: str(r.commentSupport),
+        // поля тикета, которые история повторяет в каждой строке (для режима In progress по списку ID)
+        userId: str(r.idUser),
+        agent: str(r.nameAgent),
+        subagent: str(r.nameSubagent),
+        department: str(r.nameDepartment)
       };
     });
     rows.sort(function(a, b){
@@ -110,11 +115,43 @@ var Detector = (function(){
     };
   }
 
+  // У каждого из 4 типов тикета свой статус In progress (id 2, 13, 97, 240),
+  // но названия у всех «In progress» или «In progress (M)».
+  function isInProgress(status){
+    return /^in progress\b/.test(norm(status));
+  }
+
+  // Режим In progress: берём самую свежую строку истории (как «В работе у» в Team Helper) —
+  // её Admin username и Inside comment.
+  function analyzeInProgress(data){
+    var rows = normalizeHistory(data);
+    var last = rows.length ? rows[rows.length - 1] : null;
+    if(!last) return null;
+    // поля тикета — из последней строки, где они заполнены
+    function pick(key){
+      for(var i = rows.length - 1; i >= 0; i--) if(rows[i][key]) return rows[i][key];
+      return '';
+    }
+    return {
+      isInProgress: isInProgress(last.status),
+      status: last.status,
+      internalStatus: last.internalStatus,
+      date: last.date,
+      admin: last.admin,
+      adminName: last.adminName,
+      comment: last.comment,
+      userId: pick('userId'),
+      agent: pick('agent'),
+      subagent: pick('subagent'),
+      department: pick('department')
+    };
+  }
+
   return {
     MIN_CYCLES: MIN_CYCLES, RETURN_PHRASE: RETURN_PHRASE,
     norm: norm, normalizeHistory: normalizeHistory, isApproved: isApproved,
     isReturn: isReturn, isReturnComment: isReturnComment, findCycles: findCycles,
-    analyzeHistory: analyzeHistory
+    analyzeHistory: analyzeHistory, isInProgress: isInProgress, analyzeInProgress: analyzeInProgress
   };
 })();
 
@@ -129,7 +166,7 @@ window.__pm_dmf_loaded = true;
 // ════════════════════════════════════════════════════
 // КОНФИГ
 // ════════════════════════════════════════════════════
-var VERSION       = '1.0.5';
+var VERSION       = '1.1.0';
 var DELAY_MIN     = 200;
 var DELAY_MAX     = 600;
 var DELAY_STEP    = 50;
@@ -328,6 +365,13 @@ GM_addStyle(`
 #dmf-pb-wrap{height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;}
 #dmf-pb{height:100%;width:0;background:linear-gradient(90deg,#a0405a,#ff9a85);transition:width .3s;}
 #dmf-status{font-size:11px;color:rgba(180,210,255,.6);min-height:16px;}
+/* переключатель режима */
+.dmf-mode{display:flex;gap:4px;padding:3px;border-radius:9px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);}
+.dmf-mode button{flex:1;padding:7px 4px;border-radius:7px;border:1px solid transparent;background:none;color:rgba(200,220,255,.6);font:700 11px Arial,sans-serif;cursor:pointer;}
+.dmf-mode button.on{background:rgba(255,110,90,.22);border-color:rgba(255,110,90,.6);color:#ffcfc6;}
+.dmf-mode button:disabled{cursor:not-allowed;}
+.dmf-item.ip{background:rgba(90,170,255,.08);border-color:rgba(90,170,255,.25);}
+.dmf-item.ip b{color:#9cc9ff;}
 #dmf-toast{zoom:var(--dmf-z,1);position:fixed;bottom:140px;left:16px;z-index:2147483647;padding:12px 18px;border-radius:12px;color:#e0ecff;font:600 12px Arial,sans-serif;max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;}
 `);
 
@@ -347,7 +391,9 @@ wrap.innerHTML =
     '<div id="dmf-hdr"><span class="t">🔁 Double Mistake Finder</span><span class="v">' + VERSION + '</span><div class="dmf-zoom" title="Масштаб окна (клик по % — сброс)"><button id="dmf-zoom-out">−</button><span id="dmf-zoom-val">100%</span><button id="dmf-zoom-in">+</button></div><button id="dmf-close">✕</button></div>' +
     '<div id="dmf-body">' +
       '<div id="dmf-side">' +
-        '<div class="dmf-sec">Вариант 1 — список из фильтра</div>' +
+        '<div class="dmf-sec">Что ищем</div>' +
+        '<div class="dmf-mode"><button id="dmf-mode-double" data-mode="double">🔁 Double mistakes</button><button id="dmf-mode-ip" data-mode="inprogress">⏳ In progress</button></div>' +
+        '<div class="dmf-sec" style="margin-top:6px">Вариант 1 — список из фильтра</div>' +
         '<div class="dmf-field warn" id="dmf-apply">⚠ Нажми APPLY в фильтре — перехвачу список</div>' +
         '<button class="dmf-btn" id="dmf-run-apply" disabled>▶ Сбор по APPLY</button>' +
         '<div class="dmf-sec" style="margin-top:6px">Вариант 2 — свои ID тикетов</div>' +
@@ -355,16 +401,16 @@ wrap.innerHTML =
         '<button class="dmf-btn" id="dmf-run-ids">▶ Проверить список</button>' +
         '<button class="dmf-btn" id="dmf-stop">⏹ Стоп — экспорт</button>' +
         '<label style="font-size:11px;color:rgba(200,220,255,.6);display:flex;align-items:center;gap:8px">Потоков (1–5): <input id="dmf-threads" type="number" min="1" max="5" value="' + DEFAULT_THREADS + '" style="width:48px;padding:4px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#e0ecff"></label>' +
-        '<div style="font-size:10px;color:rgba(200,220,255,.4);line-height:1.4">Ищем тикеты, где цикл <b>Approved</b> → <b>Sent for processing</b> от pay_mena_* с комментарием «please attach the approved transaction…» был ' + Detector.MIN_CYCLES + '+ раз.</div>' +
+        '<div id="dmf-desc" style="font-size:10px;color:rgba(200,220,255,.4);line-height:1.4"></div>' +
       '</div>' +
       '<div id="dmf-main">' +
         '<div class="dmf-metrics">' +
           '<div class="dmf-metric"><div class="val" id="dmf-m-total">—</div><div class="lbl">Тикетов</div></div>' +
           '<div class="dmf-metric"><div class="val" id="dmf-m-done">0</div><div class="lbl">Проверено</div></div>' +
-          '<div class="dmf-metric"><div class="val" id="dmf-m-found" style="color:#ff9a85">0</div><div class="lbl">Найдено</div></div>' +
+          '<div class="dmf-metric"><div class="val" id="dmf-m-found" style="color:#ff9a85">0</div><div class="lbl" id="dmf-m-found-lbl">Найдено</div></div>' +
           '<div class="dmf-metric"><div class="val" id="dmf-m-skip" style="color:#f93">0</div><div class="lbl">Пропущено</div></div>' +
         '</div>' +
-        '<div class="dmf-sec">Найденные тикеты</div>' +
+        '<div class="dmf-sec" id="dmf-found-lbl">Найденные тикеты</div>' +
         '<div id="dmf-found"></div>' +
         '<div id="dmf-pb-wrap"><div id="dmf-pb"></div></div>' +
         '<div id="dmf-status">Готов к запуску</div>' +
@@ -392,6 +438,30 @@ $('dmf-zoom-in').addEventListener('click', function(){ applyScale(uiScale + SCAL
 $('dmf-zoom-out').addEventListener('click', function(){ applyScale(uiScale - SCALE_STEP); });
 $('dmf-zoom-val').addEventListener('click', function(){ applyScale(1); });
 applyScale(uiScale);
+
+// ── Режим: Double mistakes или In progress. Запоминается в localStorage.
+var MODE_KEY = 'dmf_mode';
+var uiMode = 'double';
+try { uiMode = localStorage.getItem(MODE_KEY) === 'inprogress' ? 'inprogress' : 'double'; } catch(e){}
+var MODE_DESC = {
+  double: 'Ищем тикеты, где цикл <b>Approved</b> → <b>Sent for processing</b> от pay_mena_* с комментарием «please attach the approved transaction…» был ' + Detector.MIN_CYCLES + '+ раз.',
+  inprogress: 'Список тикетов в статусе <b>In progress</b> / <b>In progress (M)</b>: Ticket ID, User ID, Subagent, Referral, Agent, Department, Admin username и Inside comment из последней строки истории. В фильтре выбери статусы In progress и нажми APPLY; тикеты, которые уже вышли из In progress, пропускаются.'
+};
+function applyMode(m){
+  uiMode = m === 'inprogress' ? 'inprogress' : 'double';
+  $('dmf-mode-double').classList.toggle('on', uiMode === 'double');
+  $('dmf-mode-ip').classList.toggle('on', uiMode === 'inprogress');
+  $('dmf-desc').innerHTML = MODE_DESC[uiMode];
+  $('dmf-run-apply').textContent = uiMode === 'inprogress' ? '▶ In progress по APPLY' : '▶ Сбор по APPLY';
+  $('dmf-run-ids').textContent = uiMode === 'inprogress' ? '▶ In progress по списку' : '▶ Проверить список';
+  $('dmf-m-found-lbl').textContent = uiMode === 'inprogress' ? 'In progress' : 'Найдено';
+  $('dmf-found-lbl').textContent = uiMode === 'inprogress' ? 'Тикеты In progress' : 'Найденные тикеты';
+  try { localStorage.setItem(MODE_KEY, uiMode); } catch(e){}
+}
+[$('dmf-mode-double'), $('dmf-mode-ip')].forEach(function(b){
+  b.addEventListener('click', function(){ if(!state.running) applyMode(b.getAttribute('data-mode')); });
+});
+applyMode(uiMode);
 wrap.addEventListener('click', function(e){ if(e.target === wrap) wrap.classList.remove('open'); });
 document.addEventListener('keydown', function(e){
   if(e.altKey && (e.code === 'KeyD' || e.key === 'd' || e.key === 'D')){ e.preventDefault(); e.stopPropagation(); togglePanel(); }
@@ -435,10 +505,21 @@ function addFoundItem(f){
   var box = $('dmf-found');
   box.insertBefore(div, box.firstChild);
 }
+function addIpItem(f){
+  var div = document.createElement('div');
+  div.className = 'dmf-item ip';
+  div.innerHTML = '<b>#' + esc(f.ticketId) + '</b> — ' + esc(f.admin || 'без Admin username') +
+    (f.department ? ' · ' + esc(f.department) : '') +
+    '<div class="sub">' + esc(f.date) + (f.comment ? ' — ' + esc(f.comment.slice(0, 140)) : '') + '</div>';
+  var box = $('dmf-found');
+  box.insertBefore(div, box.firstChild);
+}
 function setRunning(on){
   state.running = on;
   fab.classList.toggle('running', on);
   $('dmf-run-ids').disabled = on;
+  $('dmf-mode-double').disabled = on;
+  $('dmf-mode-ip').disabled = on;
   $('dmf-stop').style.display = on ? 'block' : 'none';
   updateApplyState();
 }
@@ -473,7 +554,16 @@ function fetchListPage(pageNum, pollAttempt){
       if(Array.isArray(raw[0])) raw = raw[0];
       var tickets = raw.map(function(item){
         var t2 = Array.isArray(item) ? item[0] : item; if(!t2) return null;
-        return {ticketId:String(t2.idTicket || t2.idTkt || ''), country:t2.nameCountry || ''};
+        return {
+          ticketId:String(t2.idTicket || t2.idTkt || ''), country:t2.nameCountry || '',
+          // для режима In progress
+          status:String(t2.nameExternalStatus || t2.externalStatus || ''),
+          userId:String(t2.idUser || t2.userId || ''),
+          subagent:t2.nameSubagent || t2.transactionSubagentName || '',
+          referral:t2.nameRef || '',
+          agent:t2.nameAgent || '',
+          department:t2.department || t2.nameDepartment || ''
+        };
       }).filter(function(t2){ return t2 && /^\d{5,}$/.test(t2.ticketId); });
       var size = pageSize || tickets.length || 1;
       // Сервер присылает настоящий total только на стр.1, на следующих — {total: 0}.
@@ -541,6 +631,7 @@ function handleTicket(t, resp){
     if(resp) state.skipped++;
     return;
   }
+  if(state.mode === 'inprogress'){ handleInProgress(t, resp.data); return; }
   var res = Detector.analyzeHistory(resp.data);
   if(res.isDouble){
     var f = {ticketId:t.ticketId, country:t.country || '', count:res.count, cycles:res.cycles,
@@ -548,6 +639,26 @@ function handleTicket(t, resp){
     state.found.push(f);
     addFoundItem(f);
   }
+}
+
+// Режим In progress: статус — из строки списка (он актуальный), для списка ID — из последней строки истории.
+// Admin username и Inside comment — из самой свежей строки истории.
+function handleInProgress(t, data){
+  var r = Detector.analyzeInProgress(data);
+  if(!r){ state.skipped++; return; }
+  var status = t.status || r.status;
+  if(!Detector.isInProgress(status)){ state.notInProgress++; return; }
+  var f = {
+    ticketId:t.ticketId,
+    userId:t.userId || r.userId,
+    subagent:t.subagent || r.subagent,
+    referral:t.referral || '',
+    agent:t.agent || r.agent,
+    department:t.department || r.department,
+    admin:r.admin, comment:r.comment, date:r.date, status:status
+  };
+  state.found.push(f);
+  addIpItem(f);
 }
 
 function getThreads(){
@@ -567,6 +678,11 @@ function runPool(tickets){
   function worker(){
     if(!state.running || idx >= tickets.length) return Promise.resolve();
     var t = tickets[idx++];
+    if(state.mode === 'inprogress' && t.status && !Detector.isInProgress(t.status)){
+      // по списку видно, что тикет не в In progress — историю не грузим
+      state.notInProgress++; state.done++; setProgress();
+      return Promise.resolve().then(worker);
+    }
     return fetchTicket(t.ticketId).then(function(resp){
       handleTicket(t, resp);
       state.done++;
@@ -582,6 +698,7 @@ function runPool(tickets){
 }
 
 function resetRun(source){
+  state.mode = uiMode; state.notInProgress = 0;
   state.source = source; state.total = 0; state.done = 0; state.skipped = 0; state.currentPage = 1;
   state.processedIds = {}; state.found = []; state._delay = DELAY_MIN; state._finishing = false; state.expectedTotal = 0;
   state.stopReason = ''; state.pagesDone = 0;
@@ -672,15 +789,17 @@ function finishCollection(reason){
   setRunning(false);
   stopKeepalive();
   var mins = Math.max(1, Math.round((Date.now() - state.startTime) / 60000));
-  console.log('[DMF ' + VERSION + '] Проверено: ' + state.done + ' | найдено: ' + state.found.length + ' | пропущено: ' + state.skipped + ' | ~' + mins + ' мин');
+  console.log('[DMF ' + VERSION + '] Режим: ' + state.mode + ' | Проверено: ' + state.done + ' | найдено: ' + state.found.length + ' | пропущено: ' + state.skipped + ' | ~' + mins + ' мин');
   if(!state.done){
     setStatus((reason ? reason + ' — ' : '') + 'нет проверенных тикетов');
     return;
   }
   try{
-    var fn = buildXLSX();
-    setStatus((reason ? reason + ' | ' : '✅ ') + fn + ' | проверено ' + state.done + ', найдено ' + state.found.length);
-    showToast('✅ ' + fn + ' | найдено ' + state.found.length + ' из ' + state.done, 'ok');
+    var ip = state.mode === 'inprogress';
+    var fn = ip ? buildInProgressXLSX() : buildXLSX();
+    var what = ip ? 'In progress ' : 'найдено ';
+    setStatus((reason ? reason + ' | ' : '✅ ') + fn + ' | проверено ' + state.done + ', ' + what + state.found.length);
+    showToast('✅ ' + fn + ' | ' + what + state.found.length + ' из ' + state.done, 'ok');
   }catch(e){
     console.error('[DMF] Excel', e);
     setStatus('⚠ Ошибка Excel: ' + e.message);
@@ -710,6 +829,17 @@ function makeSheet(wb, name, hdr, rows, widths, rowStyle){
   ws['!freeze'] = {xSplit:0, ySplit:1};
   ws['!autofilter'] = {ref:XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:0,c:hdr.length - 1}})};
   XLSX.utils.book_append_sheet(wb, ws, name);
+}
+
+// Общие строки «Сводки»: откуда список и весь ли он пройден
+function summaryHead(){
+  return [
+    ['Источник', state.source === 'apply' ? 'Фильтр (APPLY)' + (_listPayload && _listPayload.dateFrom ? ', с ' + _listPayload.dateFrom : '') : 'Список ID'],
+    ['Проверено тикетов', state.done],
+    ['Тикетов по фильтру (total)', state.expectedTotal || '—'],
+    ['Пройдено страниц', state.source === 'apply' ? state.pagesDone : '—'],
+    ['Сбор завершён', state.stopReason ? 'РАНЬШЕ ВРЕМЕНИ: ' + state.stopReason : (state.expectedTotal && state.done < state.expectedTotal ? 'остановлен вручную или не все тикеты загрузились' : 'полностью')]
+  ];
 }
 
 function buildXLSX(){
@@ -753,24 +883,53 @@ function buildXLSX(){
       byLogin[k].tickets[f.ticketId] = 1;
     });
   });
-  var summary = [
-    ['Источник', state.source === 'apply' ? 'Фильтр (APPLY)' + (_listPayload && _listPayload.dateFrom ? ', с ' + _listPayload.dateFrom : '') : 'Список ID'],
-    ['Проверено тикетов', state.done],
-    ['Тикетов по фильтру (total)', state.expectedTotal || '—'],
-    ['Пройдено страниц', state.source === 'apply' ? state.pagesDone : '—'],
-    ['Сбор завершён', state.stopReason ? 'РАНЬШЕ ВРЕМЕНИ: ' + state.stopReason : (state.expectedTotal && state.done < state.expectedTotal ? 'остановлен вручную или не все тикеты загрузились' : 'полностью')],
+  var summary = summaryHead().concat([
     ['Найдено (' + Detector.MIN_CYCLES + '+ возврата)', found.length],
     ['Пропущено (ошибка загрузки)', state.skipped],
     ['Дата выгрузки', new Date().toLocaleString('ru-RU')],
     ['', ''],
     ['Возвраты по pay_mena', 'Возвратов / тикетов']
-  ];
+  ]);
   Object.keys(byLogin).sort(function(a, b){ return byLogin[b].returns - byLogin[a].returns; }).forEach(function(k){
     summary.push([withName(k, byLogin[k].name), byLogin[k].returns + ' / ' + Object.keys(byLogin[k].tickets).length]);
   });
   makeSheet(wb, 'Сводка', ['Показатель', 'Значение'], summary, [40, 30]);
 
   var fn = 'double_mistakes_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+  XLSX.writeFile(wb, fn);
+  return fn;
+}
+
+// Excel режима In progress
+function buildInProgressXLSX(){
+  var wb = XLSX.utils.book_new();
+  var found = state.found.slice().sort(function(a, b){
+    return String(a.admin).localeCompare(String(b.admin)) || String(a.ticketId).localeCompare(String(b.ticketId));
+  });
+  makeSheet(wb, 'In progress',
+    ['Ticket ID','User ID','Subagent','Referral','Agent','Department','Admin username','Inside comment','Дата строки','External status'],
+    found.map(function(f){
+      return [f.ticketId, f.userId, f.subagent, f.referral, f.agent, f.department, f.admin, f.comment, f.date, f.status];
+    }),
+    [14, 14, 22, 16, 22, 14, 26, 60, 20, 18]
+  );
+
+  function countBy(key){
+    var m = {};
+    found.forEach(function(f){ var k = f[key] || '—'; m[k] = (m[k] || 0) + 1; });
+    return Object.keys(m).sort(function(a, b){ return m[b] - m[a] || a.localeCompare(b); }).map(function(k){ return [k, m[k]]; });
+  }
+  var summary = summaryHead().concat([
+    ['В статусе In progress', found.length],
+    ['Уже не In progress (пропущены)', state.notInProgress],
+    ['Пропущено (ошибка загрузки)', state.skipped],
+    ['Дата выгрузки', new Date().toLocaleString('ru-RU')],
+    ['', ''],
+    ['По Admin username', 'Тикетов']
+  ]).concat(countBy('admin')).concat([['', ''], ['По Department', 'Тикетов']]).concat(countBy('department'));
+  makeSheet(wb, 'Сводка', ['Показатель', 'Значение'], summary, [40, 30]);
+
+  var fn = 'in_progress_' + new Date().toISOString().slice(0, 10) + '.xlsx';
   XLSX.writeFile(wb, fn);
   return fn;
 }

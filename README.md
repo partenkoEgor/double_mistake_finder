@@ -36,6 +36,25 @@ Tampermonkey-скрипт **pay_mena Double Mistake Finder**. Он ищет ти
 - **⏹ Стоп** останавливает сбор и выгружает то, что уже найдено.
 - **Масштаб окна** — кнопки **−** / **+** в заголовке панели (80–200%, клик по проценту — сброс на 100%). Запоминается. При масштабе страницы 67% удобно ставить ~150%.
 
+## Режим In progress
+Переключатель **🔁 Double mistakes / ⏳ In progress** вверху панели (запоминается). В режиме In progress скрипт собирает
+список тикетов в работе:
+
+1. В фильтре выбрать статусы In progress (у каждого из 4 типов тикета свой: «In progress» или «In progress (M)»), нажать **APPLY**.
+2. Нажать **▶ In progress по APPLY** (или вставить ID и нажать **▶ In progress по списку**).
+
+По каждому тикету в Excel `in_progress_<дата>.xlsx`, лист **In progress**:
+
+| Колонка | Откуда |
+|---|---|
+| Ticket ID, User ID, Subagent, Referral, Agent, Department | строка списка (`idTicket`, `idUser`, `nameSubagent`, `nameRef`, `nameAgent`, `department`) |
+| Admin username, Inside comment, Дата строки | **самая свежая** строка истории тикета (`adminProcessedLogin`, `commentSupport`, `dateEdit`) |
+| External status | строка списка; для списка ID — последняя строка истории |
+
+- Тикеты, которые по списку уже не в In progress, пропускаются без загрузки истории.
+- Для списка ID поля тикета берутся из истории; Referral в истории нет, поэтому эта колонка будет пустой.
+- Лист **Сводка**: весь ли список пройден, сколько тикетов в In progress и сколько уже вышли из него, разбивка по Admin username и по Department.
+
 ## Что считается циклом
 - Approved (M) → … → `pay_mena_*` ставит Sent for processing (M) с комментарием, в котором есть
   «please attach the approved transaction» (регистр, `// Sir,`, номер транзакции и `.x2` не важны).

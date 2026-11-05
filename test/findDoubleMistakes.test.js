@@ -76,4 +76,54 @@ test('пустая/битая история', function(){
   assert.strictEqual(D.analyzeHistory(null).count, 0);
 });
 
+// ── Режим In progress
+function ipRow(date, status, admin, comment, extra){
+  var r = row(date, status, admin, comment);
+  Object.keys(extra || {}).forEach(function(k){ r[k] = extra[k]; });
+  return r;
+}
+
+test('In progress: все 4 вида статуса распознаются, другие — нет', function(){
+  ['In progress', 'In progress (M)', 'in progress', ' In Progress (M) '].forEach(function(s){ assert.ok(D.isInProgress(s), s); });
+  ['Approved (M)', 'Sent for processing (M)', 'Closed', '', null].forEach(function(s){ assert.ok(!D.isInProgress(s), String(s)); });
+});
+
+test('In progress: берётся самая свежая строка истории, порядок API не важен', function(){
+  var tk = {idUser:1726618961, nameAgent:'BankTransfer Agents', nameSubagent:'Vodafone Nivus', nameDepartment:'MENA 1x'};
+  var rows = [
+    ipRow('2026-11-01 10:00:00', 'Sent for processing (M)', 'pay_mena_614', 'sent', tk),
+    ipRow('2026-11-02 09:00:00', 'In progress (M)', 'pay_mena_442', 'взял в работу', tk),
+    ipRow('2026-11-02 11:30:00', 'In progress (M)', 'pay_mena_646', 'жду ответа банка', tk)
+  ].reverse();
+  var r = D.analyzeInProgress(rows);
+  assert.strictEqual(r.isInProgress, true);
+  assert.strictEqual(r.admin, 'pay_mena_646');
+  assert.strictEqual(r.comment, 'жду ответа банка');
+  assert.strictEqual(r.date, '2026-11-02 11:30:00');
+  assert.strictEqual(r.userId, '1726618961');
+  assert.strictEqual(r.agent, 'BankTransfer Agents');
+  assert.strictEqual(r.subagent, 'Vodafone Nivus');
+  assert.strictEqual(r.department, 'MENA 1x');
+});
+
+test('In progress: тикет уже вышел из In progress — isInProgress false', function(){
+  var r = D.analyzeInProgress([
+    row('2026-11-02 09:00:00', 'In progress', 'pay_mena_442', 'взял'),
+    row('2026-11-02 10:00:00', 'Approved (M)', 'Vodafone_Nivus_Team_1', 'ok')
+  ]);
+  assert.strictEqual(r.isInProgress, false);
+  assert.strictEqual(r.admin, 'Vodafone_Nivus_Team_1');
+});
+
+test('In progress: реальная история 22961178 сейчас в Approved (M)', function(){
+  var r = D.analyzeInProgress(fixture.data);
+  assert.strictEqual(r.isInProgress, false);
+  assert.strictEqual(r.status, 'Approved (M)');
+});
+
+test('In progress: пустая история', function(){
+  assert.strictEqual(D.analyzeInProgress([]), null);
+  assert.strictEqual(D.analyzeInProgress(null), null);
+});
+
 console.log('\n' + passed + ' тестов пройдено');
