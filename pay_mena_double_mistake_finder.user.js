@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pay_mena Double Mistake Finder
 // @namespace    http://tampermonkey.net/
-// @version      1.3.0
+// @version      1.4.0
 // @description  Ищет тикеты, где Approved (M) 2+ раза возвращали в Sent for processing (M) с комментарием "Sir, please attach the approved transaction..."; режим In progress — список тикетов в работе: кто взял (последняя строка истории) и Inside comment
 // @match        *://th-managment.com/*
 // @match        *://*.th-managment.com/*
@@ -188,7 +188,7 @@ window.__pm_dmf_loaded = true;
 // ════════════════════════════════════════════════════
 // КОНФИГ
 // ════════════════════════════════════════════════════
-var VERSION       = '1.3.0';
+var VERSION       = '1.4.0';
 var DELAY_MIN     = 200;
 var DELAY_MAX     = 600;
 var DELAY_STEP    = 50;
@@ -680,6 +680,7 @@ function handleInProgress(t, data){
     agent:t.agent || r.agent,
     department:t.department || r.department,
     ticketType:t.ticketType || r.ticketType,
+    country:t.country || '',   // ГЕО есть только в строке списка, в истории его нет
     admin:r.admin, comment:r.comment, date:r.date, status:status
   };
   state.found.push(f);
@@ -873,7 +874,7 @@ function buildXLSX(){
 
   // Лист 1 — тикеты
   makeSheet(wb, 'Двойные ошибки',
-    ['Ticket ID','Ticket type','Country','Кол-во возвратов','Approved (дата — кто)','Возвраты (дата — pay_mena)','Текущий статус','Последнее изменение'],
+    ['Ticket ID','Ticket type','GEO','Кол-во возвратов','Approved (дата — кто)','Возвраты (дата — pay_mena)','Текущий статус','Последнее изменение'],
     found.map(function(f){
       return [
         f.ticketId, f.ticketType, f.country, f.count,
@@ -945,11 +946,11 @@ function buildInProgressXLSX(){
   found.forEach(function(f){ groups[Detector.inProgressGroup(f.admin, f.comment)].push(f); });
   SHEETS.forEach(function(sh){
     makeSheet(wb, sh.name,
-      ['Ticket ID','Ticket type','User ID','Subagent','Referral','Agent','Department','Admin username','Inside comment','Дата строки','External status'],
+      ['Ticket ID','Ticket type','GEO','User ID','Subagent','Referral','Agent','Department','Admin username','Inside comment','Дата строки','External status'],
       groups[sh.key].map(function(f){
-        return [f.ticketId, f.ticketType, f.userId, f.subagent, f.referral, f.agent, f.department, f.admin, f.comment, f.date, f.status];
+        return [f.ticketId, f.ticketType, f.country, f.userId, f.subagent, f.referral, f.agent, f.department, f.admin, f.comment, f.date, f.status];
       }),
-      [14, 12, 14, 22, 16, 22, 14, 26, 60, 20, 18]
+      [14, 12, 12, 14, 22, 16, 22, 14, 26, 60, 20, 18]
     );
   });
 
