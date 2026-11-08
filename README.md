@@ -47,7 +47,7 @@ Tampermonkey-скрипт **pay_mena Double Mistake Finder**. Он ищет ти
 
 | Колонка | Откуда |
 |---|---|
-| Ticket ID, User ID, Subagent, Referral, Agent, Department | строка списка (`idTicket`, `idUser`, `nameSubagent`, `nameRef`, `nameAgent`, `department`) |
+| Ticket ID, Ticket type, User ID, Subagent, Referral, Agent, Department | строка списка (`idTicket`, `requestTypeName`, `idUser`, `nameSubagent`, `nameRef`, `nameAgent`, `department`) |
 | Admin username, Inside comment, Дата строки | **самая свежая** строка истории тикета (`adminProcessedLogin`, `commentSupport`, `dateEdit`) |
 | External status | строка списка; для списка ID — последняя строка истории |
 
@@ -70,7 +70,7 @@ Tampermonkey-скрипт **pay_mena Double Mistake Finder**. Он ищет ти
 - Возвраты от других логинов (например, `pay_cm_mena_*`) или с другим текстом не считаются.
 
 ## Excel `double_mistakes_<дата>.xlsx`
-- **Двойные ошибки** — один тикет на строку: число возвратов, кто и когда ставил Approved, кто и когда возвращал,
+- **Двойные ошибки** — один тикет на строку: Ticket type, число возвратов, кто и когда ставил Approved, кто и когда возвращал,
   текущий статус. Тикеты с 3+ возвратами подсвечены красным.
 - **Детализация** — одна строка на каждый цикл, с Inside Comment на Approved и на возврате.
 - **Сводка** — сколько тикетов проверено, найдено и пропущено, плюс возвраты по каждому `pay_mena_*`.
