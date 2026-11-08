@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pay_mena Double Mistake Finder
 // @namespace    http://tampermonkey.net/
-// @version      1.1.0
+// @version      1.2.0
 // @description  Ищет тикеты, где Approved (M) 2+ раза возвращали в Sent for processing (M) с комментарием "Sir, please attach the approved transaction..."; режим In progress — список тикетов в работе: кто взял (последняя строка истории) и Inside comment
 // @match        *://th-managment.com/*
 // @match        *://*.th-managment.com/*
@@ -147,8 +147,24 @@ var Detector = (function(){
     };
   }
 
+  // Лист Excel для тикета In progress:
+  //   'waiting'          — в Inside comment есть «waiting for» (регистр не важен), кто бы ни был админ;
+  //   'pay_mena' / 'pay_support_mena' / 'pay_cm_mena' — по Admin username <префикс>_<номер>;
+  //   'other'            — все остальные (в том числе пустой Admin username).
+  var IP_GROUPS = [
+    {key:'pay_mena',         re:/^pay_mena_\d+$/i},
+    {key:'pay_support_mena', re:/^pay_support_mena_\d+$/i},
+    {key:'pay_cm_mena',      re:/^pay_cm_mena_\d+$/i}
+  ];
+  function inProgressGroup(admin, comment){
+    if(norm(comment).indexOf('waiting for') !== -1) return 'waiting';
+    var login = str(admin);
+    for(var i = 0; i < IP_GROUPS.length; i++) if(IP_GROUPS[i].re.test(login)) return IP_GROUPS[i].key;
+    return 'other';
+  }
+
   return {
-    MIN_CYCLES: MIN_CYCLES, RETURN_PHRASE: RETURN_PHRASE,
+    MIN_CYCLES: MIN_CYCLES, RETURN_PHRASE: RETURN_PHRASE, inProgressGroup: inProgressGroup,
     norm: norm, normalizeHistory: normalizeHistory, isApproved: isApproved,
     isReturn: isReturn, isReturnComment: isReturnComment, findCycles: findCycles,
     analyzeHistory: analyzeHistory, isInProgress: isInProgress, analyzeInProgress: analyzeInProgress
@@ -166,7 +182,7 @@ window.__pm_dmf_loaded = true;
 // ════════════════════════════════════════════════════
 // КОНФИГ
 // ════════════════════════════════════════════════════
-var VERSION       = '1.1.0';
+var VERSION       = '1.2.0';
 var DELAY_MIN     = 200;
 var DELAY_MAX     = 600;
 var DELAY_STEP    = 50;
@@ -906,13 +922,27 @@ function buildInProgressXLSX(){
   var found = state.found.slice().sort(function(a, b){
     return String(a.admin).localeCompare(String(b.admin)) || String(a.ticketId).localeCompare(String(b.ticketId));
   });
-  makeSheet(wb, 'In progress',
-    ['Ticket ID','User ID','Subagent','Referral','Agent','Department','Admin username','Inside comment','Дата строки','External status'],
-    found.map(function(f){
-      return [f.ticketId, f.userId, f.subagent, f.referral, f.agent, f.department, f.admin, f.comment, f.date, f.status];
-    }),
-    [14, 14, 22, 16, 22, 14, 26, 60, 20, 18]
-  );
+  // Листы: сначала «waiting for» в Inside comment, остальные — по префиксу Admin username.
+  // Лист создаётся всегда, даже пустой, чтобы набор листов не менялся от выгрузки к выгрузке.
+  var SHEETS = [
+    {key:'waiting',          name:'Waiting for',          label:'Inside comment с «waiting for»'},
+    {key:'pay_mena',         name:'pay_mena',             label:'Admin username pay_mena_*'},
+    {key:'pay_support_mena', name:'pay_support_mena',     label:'Admin username pay_support_mena_*'},
+    {key:'pay_cm_mena',      name:'pay_cm_mena',          label:'Admin username pay_cm_mena_*'},
+    {key:'other',            name:'Остальные',            label:'Остальные Admin username'}
+  ];
+  var groups = {};
+  SHEETS.forEach(function(sh){ groups[sh.key] = []; });
+  found.forEach(function(f){ groups[Detector.inProgressGroup(f.admin, f.comment)].push(f); });
+  SHEETS.forEach(function(sh){
+    makeSheet(wb, sh.name,
+      ['Ticket ID','User ID','Subagent','Referral','Agent','Department','Admin username','Inside comment','Дата строки','External status'],
+      groups[sh.key].map(function(f){
+        return [f.ticketId, f.userId, f.subagent, f.referral, f.agent, f.department, f.admin, f.comment, f.date, f.status];
+      }),
+      [14, 14, 22, 16, 22, 14, 26, 60, 20, 18]
+    );
+  });
 
   function countBy(key){
     var m = {};
@@ -925,8 +955,9 @@ function buildInProgressXLSX(){
     ['Пропущено (ошибка загрузки)', state.skipped],
     ['Дата выгрузки', new Date().toLocaleString('ru-RU')],
     ['', ''],
-    ['По Admin username', 'Тикетов']
-  ]).concat(countBy('admin')).concat([['', ''], ['По Department', 'Тикетов']]).concat(countBy('department'));
+    ['По листам', 'Тикетов']
+  ]).concat(SHEETS.map(function(sh){ return [sh.name + ' — ' + sh.label, groups[sh.key].length]; }))
+    .concat([['', ''], ['По Admin username', 'Тикетов']]).concat(countBy('admin')).concat([['', ''], ['По Department', 'Тикетов']]).concat(countBy('department'));
   makeSheet(wb, 'Сводка', ['Показатель', 'Значение'], summary, [40, 30]);
 
   var fn = 'in_progress_' + new Date().toISOString().slice(0, 10) + '.xlsx';

@@ -43,7 +43,7 @@ Tampermonkey-скрипт **pay_mena Double Mistake Finder**. Он ищет ти
 1. В фильтре выбрать статусы In progress (у каждого из 4 типов тикета свой: «In progress» или «In progress (M)»), нажать **APPLY**.
 2. Нажать **▶ In progress по APPLY** (или вставить ID и нажать **▶ In progress по списку**).
 
-По каждому тикету в Excel `in_progress_<дата>.xlsx`, лист **In progress**:
+По каждому тикету в Excel `in_progress_<дата>.xlsx` — колонки:
 
 | Колонка | Откуда |
 |---|---|
@@ -51,9 +51,17 @@ Tampermonkey-скрипт **pay_mena Double Mistake Finder**. Он ищет ти
 | Admin username, Inside comment, Дата строки | **самая свежая** строка истории тикета (`adminProcessedLogin`, `commentSupport`, `dateEdit`) |
 | External status | строка списка; для списка ID — последняя строка истории |
 
+Тикеты разложены по листам (листы есть всегда, даже пустые):
+
+1. **Waiting for** — в Inside comment есть «waiting for» (регистр не важен), кто бы ни был Admin username;
+2. **pay_mena** — Admin username `pay_mena_<номер>`;
+3. **pay_support_mena** — `pay_support_mena_<номер>`;
+4. **pay_cm_mena** — `pay_cm_mena_<номер>`;
+5. **Остальные** — все прочие логины и пустой Admin username.
+
 - Тикеты, которые по списку уже не в In progress, пропускаются без загрузки истории.
 - Для списка ID поля тикета берутся из истории; Referral в истории нет, поэтому эта колонка будет пустой.
-- Лист **Сводка**: весь ли список пройден, сколько тикетов в In progress и сколько уже вышли из него, разбивка по Admin username и по Department.
+- Лист **Сводка**: весь ли список пройден, сколько тикетов в In progress и сколько уже вышли из него, сколько тикетов на каждом листе, разбивка по Admin username и по Department.
 
 ## Что считается циклом
 - Approved (M) → … → `pay_mena_*` ставит Sent for processing (M) с комментарием, в котором есть

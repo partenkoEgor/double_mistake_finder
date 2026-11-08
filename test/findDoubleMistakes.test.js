@@ -126,4 +126,24 @@ test('In progress: пустая история', function(){
   assert.strictEqual(D.analyzeInProgress(null), null);
 });
 
+test('In progress: лист по Inside comment и Admin username', function(){
+  var g = D.inProgressGroup;
+  // «waiting for» важнее логина, регистр и знаки не важны
+  assert.strictEqual(g('pay_mena_442', 'Waiting for bank confirmation'), 'waiting');
+  assert.strictEqual(g('pay_cm_mena_140', '23739196863 // WAITING FOR response'), 'waiting');
+  assert.strictEqual(g('', 'waiting   for PS'), 'waiting');
+  assert.strictEqual(g('pay_mena_442', 'waiting, for'), 'waiting');
+  // без «waiting for» — по логину
+  assert.strictEqual(g('pay_mena_442', 'взял в работу'), 'pay_mena');
+  assert.strictEqual(g('PAY_MENA_7', ''), 'pay_mena');
+  assert.strictEqual(g('pay_support_mena_12', 'waiting'), 'pay_support_mena');
+  assert.strictEqual(g('pay_cm_mena_140', ''), 'pay_cm_mena');
+  // остальные
+  assert.strictEqual(g('Vodafone_Nivus_Team_1', ''), 'other');
+  assert.strictEqual(g('pay_mena_', ''), 'other');
+  assert.strictEqual(g('pay_mena_12a', ''), 'other');
+  assert.strictEqual(g('', ''), 'other');
+  assert.strictEqual(g(null, null), 'other');
+});
+
 console.log('\n' + passed + ' тестов пройдено');
