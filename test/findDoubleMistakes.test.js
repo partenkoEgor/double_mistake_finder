@@ -89,7 +89,7 @@ test('In progress: все 4 вида статуса распознаются, д
 });
 
 test('In progress: берётся самая свежая строка истории, порядок API не важен', function(){
-  var tk = {idUser:1726618961, nameAgent:'BankTransfer Agents', nameSubagent:'Vodafone Nivus', nameDepartment:'MENA 1x'};
+  var tk = {idUser:1726618961, nameAgent:'BankTransfer Agents', nameSubagent:'Vodafone Nivus', nameDepartment:'MENA 1x', requestTypeName:'BT M'};
   var rows = [
     ipRow('2026-11-01 10:00:00', 'Sent for processing (M)', 'pay_mena_614', 'sent', tk),
     ipRow('2026-11-02 09:00:00', 'In progress (M)', 'pay_mena_442', 'взял в работу', tk),
@@ -104,6 +104,14 @@ test('In progress: берётся самая свежая строка исто�
   assert.strictEqual(r.agent, 'BankTransfer Agents');
   assert.strictEqual(r.subagent, 'Vodafone Nivus');
   assert.strictEqual(r.department, 'MENA 1x');
+  assert.strictEqual(r.ticketType, 'BT M');
+});
+
+test('Ticket type для Double mistakes — из последней строки истории, где он есть', function(){
+  var a = approved('2026-10-01 10:00:00'); a.requestTypeName = 'BT M';
+  var r = D.analyzeHistory([a, ret('2026-10-01 12:00:00')]);
+  assert.strictEqual(r.ticketType, 'BT M');
+  assert.strictEqual(D.analyzeHistory([approved('2026-10-01 10:00:00')]).ticketType, '');
 });
 
 test('In progress: тикет уже вышел из In progress — isInProgress false', function(){

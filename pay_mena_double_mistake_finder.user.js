@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pay_mena Double Mistake Finder
 // @namespace    http://tampermonkey.net/
-// @version      1.2.0
+// @version      1.3.0
 // @description  Ищет тикеты, где Approved (M) 2+ раза возвращали в Sent for processing (M) с комментарием "Sir, please attach the approved transaction..."; режим In progress — список тикетов в работе: кто взял (последняя строка истории) и Inside comment
 // @match        *://th-managment.com/*
 // @match        *://*.th-managment.com/*
@@ -53,7 +53,8 @@ var Detector = (function(){
         userId: str(r.idUser),
         agent: str(r.nameAgent),
         subagent: str(r.nameSubagent),
-        department: str(r.nameDepartment)
+        department: str(r.nameDepartment),
+        ticketType: str(r.requestTypeName)   // "Ticket type", напр. "BT M"
       };
     });
     rows.sort(function(a, b){
@@ -101,6 +102,12 @@ var Detector = (function(){
     return cycles;
   }
 
+  // значение поля тикета из последней строки истории, где оно заполнено
+  function lastFilled(rows, key){
+    for(var i = rows.length - 1; i >= 0; i--) if(rows[i][key]) return rows[i][key];
+    return '';
+  }
+
   function analyzeHistory(data){
     var rows = normalizeHistory(data);
     var cycles = findCycles(rows);
@@ -111,7 +118,8 @@ var Detector = (function(){
       cycles: cycles,
       lastStatus: last ? last.status + (last.internalStatus ? ' / ' + last.internalStatus : '') : '',
       lastDate: last ? last.date : '',
-      lastAdmin: last ? last.admin : ''
+      lastAdmin: last ? last.admin : '',
+      ticketType: lastFilled(rows, 'ticketType')
     };
   }
 
@@ -128,10 +136,7 @@ var Detector = (function(){
     var last = rows.length ? rows[rows.length - 1] : null;
     if(!last) return null;
     // поля тикета — из последней строки, где они заполнены
-    function pick(key){
-      for(var i = rows.length - 1; i >= 0; i--) if(rows[i][key]) return rows[i][key];
-      return '';
-    }
+    function pick(key){ return lastFilled(rows, key); }
     return {
       isInProgress: isInProgress(last.status),
       status: last.status,
@@ -141,6 +146,7 @@ var Detector = (function(){
       adminName: last.adminName,
       comment: last.comment,
       userId: pick('userId'),
+      ticketType: pick('ticketType'),
       agent: pick('agent'),
       subagent: pick('subagent'),
       department: pick('department')
@@ -182,7 +188,7 @@ window.__pm_dmf_loaded = true;
 // ════════════════════════════════════════════════════
 // КОНФИГ
 // ════════════════════════════════════════════════════
-var VERSION       = '1.2.0';
+var VERSION       = '1.3.0';
 var DELAY_MIN     = 200;
 var DELAY_MAX     = 600;
 var DELAY_STEP    = 50;
@@ -578,7 +584,8 @@ function fetchListPage(pageNum, pollAttempt){
           subagent:t2.nameSubagent || t2.transactionSubagentName || '',
           referral:t2.nameRef || '',
           agent:t2.nameAgent || '',
-          department:t2.department || t2.nameDepartment || ''
+          department:t2.department || t2.nameDepartment || '',
+          ticketType:t2.requestTypeName || ''
         };
       }).filter(function(t2){ return t2 && /^\d{5,}$/.test(t2.ticketId); });
       var size = pageSize || tickets.length || 1;
@@ -651,7 +658,8 @@ function handleTicket(t, resp){
   var res = Detector.analyzeHistory(resp.data);
   if(res.isDouble){
     var f = {ticketId:t.ticketId, country:t.country || '', count:res.count, cycles:res.cycles,
-             lastStatus:res.lastStatus, lastDate:res.lastDate, lastAdmin:res.lastAdmin};
+             lastStatus:res.lastStatus, lastDate:res.lastDate, lastAdmin:res.lastAdmin,
+             ticketType:t.ticketType || res.ticketType};
     state.found.push(f);
     addFoundItem(f);
   }
@@ -671,6 +679,7 @@ function handleInProgress(t, data){
     referral:t.referral || '',
     agent:t.agent || r.agent,
     department:t.department || r.department,
+    ticketType:t.ticketType || r.ticketType,
     admin:r.admin, comment:r.comment, date:r.date, status:status
   };
   state.found.push(f);
@@ -864,17 +873,17 @@ function buildXLSX(){
 
   // Лист 1 — тикеты
   makeSheet(wb, 'Двойные ошибки',
-    ['Ticket ID','Country','Кол-во возвратов','Approved (дата — кто)','Возвраты (дата — pay_mena)','Текущий статус','Последнее изменение'],
+    ['Ticket ID','Ticket type','Country','Кол-во возвратов','Approved (дата — кто)','Возвраты (дата — pay_mena)','Текущий статус','Последнее изменение'],
     found.map(function(f){
       return [
-        f.ticketId, f.country, f.count,
+        f.ticketId, f.ticketType, f.country, f.count,
         f.cycles.map(function(c){ return c.approvedAt + ' — ' + c.approvedBy; }).join('\n'),
         f.cycles.map(function(c){ return c.returnedAt + ' — ' + withName(c.returnedBy, c.returnedByName); }).join('\n'),
         f.lastStatus,
         f.lastDate + (f.lastAdmin ? ' — ' + f.lastAdmin : '')
       ];
     }),
-    [14, 10, 10, 34, 46, 34, 30],
+    [14, 12, 10, 10, 34, 46, 34, 30],
     function(i){ return found[i].count > Detector.MIN_CYCLES ? [XC.rB, XC.rF] : null; }
   );
 
@@ -936,11 +945,11 @@ function buildInProgressXLSX(){
   found.forEach(function(f){ groups[Detector.inProgressGroup(f.admin, f.comment)].push(f); });
   SHEETS.forEach(function(sh){
     makeSheet(wb, sh.name,
-      ['Ticket ID','User ID','Subagent','Referral','Agent','Department','Admin username','Inside comment','Дата строки','External status'],
+      ['Ticket ID','Ticket type','User ID','Subagent','Referral','Agent','Department','Admin username','Inside comment','Дата строки','External status'],
       groups[sh.key].map(function(f){
-        return [f.ticketId, f.userId, f.subagent, f.referral, f.agent, f.department, f.admin, f.comment, f.date, f.status];
+        return [f.ticketId, f.ticketType, f.userId, f.subagent, f.referral, f.agent, f.department, f.admin, f.comment, f.date, f.status];
       }),
-      [14, 14, 22, 16, 22, 14, 26, 60, 20, 18]
+      [14, 12, 14, 22, 16, 22, 14, 26, 60, 20, 18]
     );
   });
 
