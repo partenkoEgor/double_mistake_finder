@@ -48,7 +48,9 @@ Tampermonkey-скрипт **pay_mena Double Mistake Finder**. Он ищет ти
 | Колонка | Откуда |
 |---|---|
 | Ticket ID, Ticket type, GEO, User ID, Subagent, Referral, Agent, Department | строка списка (`idTicket`, `requestTypeName`, `nameCountry`, `idUser`, `nameSubagent`, `nameRef`, `nameAgent`, `department`) |
-| Admin username, Inside comment, Дата строки | **самая свежая** строка истории тикета (`adminProcessedLogin`, `commentSupport`, `dateEdit`) |
+| Admin username, Inside comment, Последнее изменение | **самая свежая** строка истории тикета (`adminProcessedLogin`, `commentSupport`, `dateEdit`) |
+| Дата создания | строка списка (`dtCreate`); для списка ID — самая ранняя строка истории |
+| Вход в In progress | история: первая строка текущей серии In progress (когда тикет последний раз перешёл в статус; пересохранения без смены статуса не сдвигают дату) |
 | External status | строка списка; для списка ID — последняя строка истории |
 
 Тикеты разложены по листам (листы есть всегда, даже пустые):
