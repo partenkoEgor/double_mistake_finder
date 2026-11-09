@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pay_mena Double Mistake Finder
 // @namespace    http://tampermonkey.net/
-// @version      1.5.0
+// @version      1.5.1
 // @description  Ищет тикеты, где Approved (M) 2+ раза возвращали в Sent for processing (M) с комментарием "Sir, please attach the approved transaction..."; режим In progress — список тикетов в работе: кто взял (последняя строка истории) и Inside comment
 // @match        *://th-managment.com/*
 // @match        *://*.th-managment.com/*
@@ -137,16 +137,7 @@ var Detector = (function(){
     if(!last) return null;
     // поля тикета — из последней строки, где они заполнены
     function pick(key){ return lastFilled(rows, key); }
-    // Вход в In progress — первая строка текущей серии In progress (тикет могли пересохранять,
-    // не меняя статус: берём момент, когда он в этот статус перешёл, а не последнее сохранение).
-    var enteredAt = '';
-    if(isInProgress(last.status)){
-      var i = rows.length - 1;
-      while(i > 0 && isInProgress(rows[i - 1].status)) i--;
-      enteredAt = rows[i].date;
-    }
     return {
-      enteredAt: enteredAt,
       firstDate: rows[0].date,   // самая ранняя строка истории — запасной вариант даты создания
       isInProgress: isInProgress(last.status),
       status: last.status,
@@ -198,7 +189,7 @@ window.__pm_dmf_loaded = true;
 // ════════════════════════════════════════════════════
 // КОНФИГ
 // ════════════════════════════════════════════════════
-var VERSION       = '1.5.0';
+var VERSION       = '1.5.1';
 var DELAY_MIN     = 200;
 var DELAY_MAX     = 600;
 var DELAY_STEP    = 50;
@@ -694,7 +685,6 @@ function handleInProgress(t, data){
     country:t.country || '',   // ГЕО есть только в строке списка, в истории его нет
     // дата создания — из списка (dtCreate); для списка ID — самая ранняя строка истории
     createdAt:t.createdAt || r.firstDate,
-    enteredAt:r.enteredAt,
     admin:r.admin, comment:r.comment, date:r.date, status:status
   };
   state.found.push(f);
@@ -960,11 +950,11 @@ function buildInProgressXLSX(){
   found.forEach(function(f){ groups[Detector.inProgressGroup(f.admin, f.comment)].push(f); });
   SHEETS.forEach(function(sh){
     makeSheet(wb, sh.name,
-      ['Ticket ID','Ticket type','GEO','User ID','Subagent','Referral','Agent','Department','Admin username','Inside comment','Дата создания','Вход в In progress','Последнее изменение','External status'],
+      ['Ticket ID','Ticket type','GEO','User ID','Subagent','Referral','Agent','Department','Admin username','Inside comment','Дата создания','Последнее изменение','External status'],
       groups[sh.key].map(function(f){
-        return [f.ticketId, f.ticketType, f.country, f.userId, f.subagent, f.referral, f.agent, f.department, f.admin, f.comment, f.createdAt, f.enteredAt, f.date, f.status];
+        return [f.ticketId, f.ticketType, f.country, f.userId, f.subagent, f.referral, f.agent, f.department, f.admin, f.comment, f.createdAt, f.date, f.status];
       }),
-      [14, 12, 12, 14, 22, 16, 22, 14, 26, 60, 20, 20, 20, 18]
+      [14, 12, 12, 14, 22, 16, 22, 14, 26, 60, 20, 20, 18]
     );
   });
 
