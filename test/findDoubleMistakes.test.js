@@ -154,4 +154,24 @@ test('In progress: лист по Inside comment и Admin username', function(){
   assert.strictEqual(g(null, null), 'other');
 });
 
+test('In progress: дата входа в статус — начало текущей серии In progress', function(){
+  var rows = [
+    row('2026-10-01 08:00:00', 'New', '', 'создан'),
+    row('2026-10-02 09:00:00', 'In progress (M)', 'pay_mena_442', 'взял'),           // старая серия
+    row('2026-10-03 10:00:00', 'Sent for processing (M)', 'pay_mena_442', 'отправил'),
+    row('2026-10-04 11:00:00', 'In progress (M)', 'pay_mena_614', 'снова взял'),     // вход в текущую серию
+    row('2026-10-05 12:00:00', 'In progress (M)', 'pay_mena_646', 'пересохранил')    // последняя строка
+  ].reverse();
+  var r = D.analyzeInProgress(rows);
+  assert.strictEqual(r.enteredAt, '2026-10-04 11:00:00');
+  assert.strictEqual(r.date, '2026-10-05 12:00:00');
+  assert.strictEqual(r.admin, 'pay_mena_646');
+  assert.strictEqual(r.firstDate, '2026-10-01 08:00:00');
+});
+
+test('In progress: вся история в In progress — вход = первая строка; не в In progress — пусто', function(){
+  assert.strictEqual(D.analyzeInProgress([row('2026-10-02 09:00:00', 'In progress', 'pay_mena_442', '')]).enteredAt, '2026-10-02 09:00:00');
+  assert.strictEqual(D.analyzeInProgress([row('2026-10-02 09:00:00', 'Approved (M)', 'x', '')]).enteredAt, '');
+});
+
 console.log('\n' + passed + ' тестов пройдено');
