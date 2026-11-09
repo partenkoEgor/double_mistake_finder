@@ -146,6 +146,10 @@ test('In progress: лист по Inside comment и Admin username', function(){
   assert.strictEqual(g('PAY_MENA_7', ''), 'pay_mena');
   assert.strictEqual(g('pay_support_mena_12', 'waiting'), 'pay_support_mena');
   assert.strictEqual(g('pay_cm_mena_140', ''), 'pay_cm_mena');
+  assert.strictEqual(g('pay_mena_antifraud_59', 'проверка'), 'pay_mena_antifraud');
+  assert.strictEqual(g('PAY_MENA_ANTIFRAUD_7', ''), 'pay_mena_antifraud');
+  assert.strictEqual(g('pay_mena_antifraud_59', 'Waiting for docs'), 'waiting');
+  assert.strictEqual(g('pay_mena_antifraud_', ''), 'other');
   // остальные
   assert.strictEqual(g('Vodafone_Nivus_Team_1', ''), 'other');
   assert.strictEqual(g('pay_mena_', ''), 'other');
