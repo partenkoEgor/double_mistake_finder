@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         pay_mena Double Mistake Finder
 // @namespace    http://tampermonkey.net/
-// @version      1.5.1
+// @version      1.6.0
 // @description  Ищет тикеты, где Approved (M) 2+ раза возвращали в Sent for processing (M) с комментарием "Sir, please attach the approved transaction..."; режим In progress — список тикетов в работе: кто взял (последняя строка истории) и Inside comment
 // @match        *://th-managment.com/*
 // @match        *://*.th-managment.com/*
@@ -156,10 +156,11 @@ var Detector = (function(){
 
   // Лист Excel для тикета In progress:
   //   'waiting'          — в Inside comment есть «waiting for» (регистр не важен), кто бы ни был админ;
-  //   'pay_mena' / 'pay_support_mena' / 'pay_cm_mena' — по Admin username <префикс>_<номер>;
+  //   'pay_mena' / 'pay_mena_antifraud' / 'pay_support_mena' / 'pay_cm_mena' — по Admin username <префикс>_<номер>;
   //   'other'            — все остальные (в том числе пустой Admin username).
   var IP_GROUPS = [
     {key:'pay_mena',         re:/^pay_mena_\d+$/i},
+    {key:'pay_mena_antifraud', re:/^pay_mena_antifraud_\d+$/i},
     {key:'pay_support_mena', re:/^pay_support_mena_\d+$/i},
     {key:'pay_cm_mena',      re:/^pay_cm_mena_\d+$/i}
   ];
@@ -189,7 +190,7 @@ window.__pm_dmf_loaded = true;
 // ════════════════════════════════════════════════════
 // КОНФИГ
 // ════════════════════════════════════════════════════
-var VERSION       = '1.5.1';
+var VERSION       = '1.6.0';
 var DELAY_MIN     = 200;
 var DELAY_MAX     = 600;
 var DELAY_STEP    = 50;
@@ -941,6 +942,7 @@ function buildInProgressXLSX(){
   var SHEETS = [
     {key:'waiting',          name:'Waiting for',          label:'Inside comment с «waiting for»'},
     {key:'pay_mena',         name:'pay_mena',             label:'Admin username pay_mena_*'},
+    {key:'pay_mena_antifraud', name:'pay_mena_antifraud', label:'Admin username pay_mena_antifraud_*'},
     {key:'pay_support_mena', name:'pay_support_mena',     label:'Admin username pay_support_mena_*'},
     {key:'pay_cm_mena',      name:'pay_cm_mena',          label:'Admin username pay_cm_mena_*'},
     {key:'other',            name:'Остальные',            label:'Остальные Admin username'}

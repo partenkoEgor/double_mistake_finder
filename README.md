@@ -56,9 +56,10 @@ Tampermonkey-скрипт **pay_mena Double Mistake Finder**. Он ищет ти
 
 1. **Waiting for** — в Inside comment есть «waiting for» (регистр не важен), кто бы ни был Admin username;
 2. **pay_mena** — Admin username `pay_mena_<номер>`;
-3. **pay_support_mena** — `pay_support_mena_<номер>`;
-4. **pay_cm_mena** — `pay_cm_mena_<номер>`;
-5. **Остальные** — все прочие логины и пустой Admin username.
+3. **pay_mena_antifraud** — `pay_mena_antifraud_<номер>`;
+4. **pay_support_mena** — `pay_support_mena_<номер>`;
+5. **pay_cm_mena** — `pay_cm_mena_<номер>`;
+6. **Остальные** — все прочие логины и пустой Admin username.
 
 - Тикеты, которые по списку уже не в In progress, пропускаются без загрузки истории.
 - Для списка ID поля тикета берутся из истории; Referral в истории нет, поэтому эта колонка будет пустой; то же с GEO (`nameCountry`).
